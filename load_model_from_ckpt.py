@@ -38,9 +38,7 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 
 def parse_args():
     parser = argparse.ArgumentParser(description=globals()["__doc__"])
-    parser.add_argument(
-        "--ckpt_path", type=str, required=True, help="Path to checkpoint.pt"
-    )
+    parser.add_argument("--ckpt_path", type=str, required=True, help="Path to checkpoint.pt")
     parser.add_argument(
         "--data_path",
         type=str,
@@ -66,9 +64,7 @@ def load_model(ckpt_path, device=device):
         states = torch.load(ckpt_path, map_location=config.device)
     else:
         states = torch.load(ckpt_path, map_location="cpu")
-        states[0] = OrderedDict(
-            [(k.replace("module.", ""), v) for k, v in states[0].items()]
-        )
+        states[0] = OrderedDict([(k.replace("module.", ""), v) for k, v in states[0].items()])
     scorenet.load_state_dict(states[0], strict=False)
     if config.model.ema:
         ema_helper = EMAHelper(mu=config.model.ema_rate)
@@ -84,11 +80,7 @@ def get_sampler_from_config(config):
     # Sampler
     if version == "SMLD":
         consistent = getattr(config.sampling, "consistent", False)
-        sampler = (
-            anneal_Langevin_dynamics_consistent
-            if consistent
-            else anneal_Langevin_dynamics
-        )
+        sampler = anneal_Langevin_dynamics_consistent if consistent else anneal_Langevin_dynamics
     elif version == "DDPM":
         sampler = partial(ddpm_sampler, config=config)
     elif version == "DDIM":

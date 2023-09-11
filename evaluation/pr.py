@@ -12,9 +12,7 @@ def calculate_precision_recall_part(feat_r, feat_g, k=3, batch_size=10000):
     # Precision
     NNk_r = []
     for feat_r_batch in feat_r.split(batch_size):
-        NNk_r.append(
-            calc_cdist(feat_r_batch, feat_r, batch_size).kthvalue(k + 1).values
-        )
+        NNk_r.append(calc_cdist(feat_r_batch, feat_r, batch_size).kthvalue(k + 1).values)
     NNk_r = torch.cat(NNk_r)
     precision = []
     for feat_g_batch in feat_g.split(batch_size):
@@ -24,9 +22,7 @@ def calculate_precision_recall_part(feat_r, feat_g, k=3, batch_size=10000):
     # Recall
     NNk_g = []
     for feat_g_batch in feat_g.split(batch_size):
-        NNk_g.append(
-            calc_cdist(feat_g_batch, feat_g, batch_size).kthvalue(k + 1).values
-        )
+        NNk_g.append(calc_cdist(feat_g_batch, feat_g, batch_size).kthvalue(k + 1).values)
     NNk_g = torch.cat(NNk_g)
     recall = []
     for feat_r_batch in feat_r.split(batch_size):
@@ -59,13 +55,7 @@ def calculate_precision_recall_full(feat_r, feat_g, k=3, batch_size=10000):
 
 
 def calculate_precision_recall(
-    feat_r,
-    feat_g,
-    device=torch.device("cuda"),
-    k=3,
-    batch_size=10000,
-    save_cpu_ram=False,
-    **kwargs
+    feat_r, feat_g, device=torch.device("cuda"), k=3, batch_size=10000, save_cpu_ram=False, **kwargs
 ):
     feat_r = feat_r.to(device)
     feat_g = feat_g.to(device)

@@ -52,20 +52,14 @@ class Nin(nn.Module):
     def __init__(self, channel_in: int, channel_out: int, init_scale=1.0):
         super().__init__()
         self.channel_out = channel_out
-        self.weights = nn.Parameter(
-            torch.zeros(channel_out, channel_in), requires_grad=True
-        )
-        torch.nn.init.xavier_uniform_(
-            self.weights, math.sqrt(1e-10 if init_scale == 0.0 else init_scale)
-        )
+        self.weights = nn.Parameter(torch.zeros(channel_out, channel_in), requires_grad=True)
+        torch.nn.init.xavier_uniform_(self.weights, math.sqrt(1e-10 if init_scale == 0.0 else init_scale))
         self.bias = nn.Parameter(torch.zeros(channel_out), requires_grad=True)
         torch.nn.init.zeros_(self.bias)
 
     def forward(self, x):
         bs, _, width, _ = x.shape
-        res = torch.bmm(
-            self.weights.repeat(bs, 1, 1), x.flatten(2)
-        ) + self.bias.unsqueeze(0).unsqueeze(-1)
+        res = torch.bmm(self.weights.repeat(bs, 1, 1), x.flatten(2)) + self.bias.unsqueeze(0).unsqueeze(-1)
         return res.view(bs, self.channel_out, width, width)
 
 
@@ -162,9 +156,7 @@ def get_timestep_embedding(timesteps, embedding_dim: int = 128):
     assert len(timesteps.shape) == 1  # and timesteps.dtype == tf.int32
     half_dim = embedding_dim // 2
     emb = math.log(10000) / (half_dim - 1)
-    emb = torch.exp(
-        torch.arange(half_dim, dtype=torch.float, device=timesteps.device) * -emb
-    )
+    emb = torch.exp(torch.arange(half_dim, dtype=torch.float, device=timesteps.device) * -emb)
     emb = timesteps.float().unsqueeze(1) * emb.unsqueeze(0)
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
     if embedding_dim % 2 == 1:  # zero pad
@@ -196,18 +188,16 @@ class UNet(nn.Module):
         self.mode = mode = getattr(config, "mode", "deep")
         assert mode in ["deep", "deeper", "deepest"]
         self.dropout = nn.Dropout2d(p=getattr(config.model, "dropout", 0.0))
-        self.time_conditional = time_conditional = getattr(
-            config.model, "time_conditional", False
-        )
+        self.time_conditional = time_conditional = getattr(config.model, "time_conditional", False)
 
         self.version = getattr(config.model, "version", "SMLD").upper()
         self.logit_transform = config.data.logit_transform
         self.rescaled = config.data.rescaled
 
         self.num_frames = num_frames = getattr(config.data, "num_frames", 1)
-        self.num_frames_cond = num_frames_cond = getattr(
-            config.data, "num_frames_cond", 0
-        ) + getattr(config.data, "num_frames_future", 0)
+        self.num_frames_cond = num_frames_cond = getattr(config.data, "num_frames_cond", 0) + getattr(
+            config.data, "num_frames_future", 0
+        )
 
         # TODO make sure channel is in dimensions 1 [bs x c x 32 x 32]
         ResnetBlock_ = partialclass(
@@ -245,9 +235,7 @@ class UNet(nn.Module):
                     self.downblocks.append(AttnBlock(ich))
 
             if i != len(ch_mult) - 1:
-                self.downblocks.append(
-                    nn.Conv2d(ich, ich, kernel_size=3, stride=2, padding=1)
-                )
+                self.downblocks.append(nn.Conv2d(ich, ich, kernel_size=3, stride=2, padding=1))
                 ch_size += [ich]
             prev_ch = ich
         init_weights(self.downblocks, module_is_list=True)
@@ -349,9 +337,7 @@ class UNet_SMLD(nn.Module):
         super().__init__()
 
         self.version = getattr(config.model, "version", "SMLD").upper()
-        assert (
-            self.version == "SMLD"
-        ), f"models/unet : version is not SMLD! Given: {self.version}"
+        assert self.version == "SMLD", f"models/unet : version is not SMLD! Given: {self.version}"
 
         self.config = config
         self.unet = UNet(config)
@@ -365,9 +351,7 @@ class UNet_SMLD(nn.Module):
             # if labels is None:
             #     labels = torch.randint(0, len(sigmas), (cond.shape[0],), device=cond.device)
             labels = y
-            used_sigmas = sigmas[labels].reshape(
-                cond.shape[0], *([1] * len(cond.shape[1:]))
-            )
+            used_sigmas = sigmas[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
             z = torch.randn_like(cond)
             cond = cond + used_sigmas * z
 
@@ -388,9 +372,7 @@ class UNet_DDPM(nn.Module):
 
         self.schedule = getattr(config.model, "sigma_dist", "linear")
         if self.schedule == "linear":
-            self.register_buffer(
-                "betas", get_sigmas(config)
-            )  # large to small, doesn't match paper, match code instead
+            self.register_buffer("betas", get_sigmas(config))  # large to small, doesn't match paper, match code instead
             self.register_buffer(
                 "alphas", torch.cumprod(1 - self.betas.flip(0), 0).flip(0)
             )  # flip for small-to-large, then flip back
@@ -406,9 +388,7 @@ class UNet_DDPM(nn.Module):
                 "alphas_prev",
                 torch.cat([self.alphas[1:], torch.tensor([1.0]).to(self.alphas)]),
             )
-            self.register_buffer(
-                "betas", (1 - self.alphas / self.alphas_prev).clip_(0, 0.999)
-            )
+            self.register_buffer("betas", (1 - self.alphas / self.alphas_prev).clip_(0, 0.999))
         self.gamma = getattr(config.model, "gamma", False)
         if self.gamma:
             self.theta_0 = 0.001
@@ -428,19 +408,13 @@ class UNet_DDPM(nn.Module):
             # if labels is None:
             #     labels = torch.randint(0, len(alphas), (cond.shape[0],), device=cond.device)
             labels = y
-            used_alphas = alphas[labels].reshape(
-                cond.shape[0], *([1] * len(cond.shape[1:]))
-            )
+            used_alphas = alphas[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
             if self.gamma:
                 used_k = (
-                    self.k_cum[labels]
-                    .reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
-                    .repeat(1, *cond.shape[1:])
+                    self.k_cum[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:]))).repeat(1, *cond.shape[1:])
                 )
                 used_theta = (
-                    self.theta_t[labels]
-                    .reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
-                    .repeat(1, *cond.shape[1:])
+                    self.theta_t[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:]))).repeat(1, *cond.shape[1:])
                 )
                 z = Gamma(used_k, 1 / used_theta).sample()
                 z = (z - used_k * used_theta) / (1 - used_alphas).sqrt()

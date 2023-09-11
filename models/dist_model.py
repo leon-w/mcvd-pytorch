@@ -103,9 +103,7 @@ class DistModel(BaseModel):
         elif self.model == "net":  # pretrained network
             self.net = networks.PNetLin(pnet_rand=pnet_rand, pnet_type=net, lpips=False)
         elif self.model in ["L2", "l2"]:
-            self.net = networks.L2(
-                device=self.device, colorspace=colorspace
-            )  # not really a network, only for testing
+            self.net = networks.L2(device=self.device, colorspace=colorspace)  # not really a network, only for testing
             self.model_name = "L2"
         elif self.model in ["DSSIM", "dssim", "SSIM", "ssim"]:
             self.net = networks.DSSIM(device=self.device, colorspace=colorspace)
@@ -121,9 +119,7 @@ class DistModel(BaseModel):
             self.parameters += list(self.rankLoss.net.parameters())
             self.lr = lr
             self.old_lr = lr
-            self.optimizer_net = torch.optim.Adam(
-                self.parameters, lr=lr, betas=(beta1, 0.999)
-            )
+            self.optimizer_net = torch.optim.Adam(self.parameters, lr=lr, betas=(beta1, 0.999))
         else:  # test mode
             self.net.eval()
         self.net.to(device=self.device)
@@ -185,9 +181,7 @@ class DistModel(BaseModel):
 
         self.var_judge = Variable(1.0 * self.input_judge).view(self.d0.size())
 
-        self.loss_total = self.rankLoss.forward(
-            self.d0, self.d1, self.var_judge * 2.0 - 1.0
-        )
+        self.loss_total = self.rankLoss.forward(self.d0, self.d1, self.var_judge * 2.0 - 1.0)
 
         return self.loss_total
 
@@ -201,9 +195,7 @@ class DistModel(BaseModel):
         return d1_lt_d0 * judge_per + (1 - d1_lt_d0) * (1 - judge_per)
 
     def get_current_errors(self):
-        retDict = OrderedDict(
-            [("loss_total", self.loss_total.data.cpu().numpy()), ("acc_r", self.acc_r)]
-        )
+        retDict = OrderedDict([("loss_total", self.loss_total.data.cpu().numpy()), ("acc_r", self.acc_r)])
 
         for key in retDict.keys():
             retDict[key] = np.mean(retDict[key])
@@ -221,9 +213,7 @@ class DistModel(BaseModel):
         p0_img_vis = zoom(p0_img, [zoom_factor, zoom_factor, 1], order=0)
         p1_img_vis = zoom(p1_img, [zoom_factor, zoom_factor, 1], order=0)
 
-        return OrderedDict(
-            [("ref", ref_img_vis), ("p0", p0_img_vis), ("p1", p1_img_vis)]
-        )
+        return OrderedDict([("ref", ref_img_vis), ("p0", p0_img_vis), ("p1", p1_img_vis)])
 
     def save(self, path, label):
         if self.use_gpu:

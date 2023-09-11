@@ -14,9 +14,7 @@ contract_inner = layers.contract_inner
 class NIN(nn.Module):
     def __init__(self, in_dim, num_units, init_scale=0.1):
         super().__init__()
-        self.W = nn.Parameter(
-            default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True
-        )
+        self.W = nn.Parameter(default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True)
         self.b = nn.Parameter(torch.zeros(num_units), requires_grad=True)
 
     def forward(self, x):
@@ -40,9 +38,7 @@ class AttnBlockpp(nn.Module):
         num_groups = min(channels // 4, 32)
         while channels % num_groups != 0:  # must find another value
             num_groups -= 1
-        self.GroupNorm_0 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=channels, eps=1e-6
-        )
+        self.GroupNorm_0 = nn.GroupNorm(num_groups=num_groups, num_channels=channels, eps=1e-6)
         self.NIN_0 = NIN(channels, channels)
         self.NIN_1 = NIN(channels, channels)
         self.NIN_2 = NIN(channels, channels)
@@ -66,11 +62,14 @@ class AttnBlockpp(nn.Module):
 
         C = C // self.n_heads
 
-        w = torch.einsum(
-            "bchw,bcij->bhwij",
-            q.reshape(B * self.n_heads, C, H, W),
-            k.reshape(B * self.n_heads, C, H, W),
-        ) * (int(C) ** (-0.5))
+        w = (
+            torch.einsum(
+                "bchw,bcij->bhwij",
+                q.reshape(B * self.n_heads, C, H, W),
+                k.reshape(B * self.n_heads, C, H, W),
+            )
+            * (int(C) ** (-0.5))
+        )
         w = torch.reshape(w, (B * self.n_heads, H, W, H * W))
         w = F.softmax(w, dim=-1)
         w = torch.reshape(w, (B * self.n_heads, H, W, H, W))
@@ -86,9 +85,7 @@ class AttnBlockpp(nn.Module):
 class NIN1d(nn.Module):
     def __init__(self, in_dim, num_units, init_scale=0.1):
         super().__init__()
-        self.W = nn.Parameter(
-            default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True
-        )
+        self.W = nn.Parameter(default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True)
         self.b = nn.Parameter(torch.zeros(num_units), requires_grad=True)
 
     def forward(self, x):
@@ -112,9 +109,7 @@ class AttnBlockpp1d(nn.Module):
         num_groups = min(channels // 4, 32)
         while channels % num_groups != 0:
             num_groups -= 1
-        self.GroupNorm_0 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=channels, eps=1e-6
-        )
+        self.GroupNorm_0 = nn.GroupNorm(num_groups=num_groups, num_channels=channels, eps=1e-6)
         self.NIN_0 = NIN1d(channels, channels)
         self.NIN_1 = NIN1d(channels, channels)
         self.NIN_2 = NIN1d(channels, channels)
@@ -137,11 +132,14 @@ class AttnBlockpp1d(nn.Module):
         v = self.NIN_2(h)
 
         C = C // self.n_heads
-        w = torch.einsum(
-            "bct,bci->bti",
-            q.reshape(B * self.n_heads, C, T),
-            k.reshape(B * self.n_heads, C, T),
-        ) * (int(C) ** (-0.5))
+        w = (
+            torch.einsum(
+                "bct,bci->bti",
+                q.reshape(B * self.n_heads, C, T),
+                k.reshape(B * self.n_heads, C, T),
+            )
+            * (int(C) ** (-0.5))
+        )
         w = torch.reshape(w, (B * self.n_heads, T, T))
         w = F.softmax(w, dim=-1)
         w = torch.reshape(w, (B * self.n_heads, T, T))
@@ -157,9 +155,7 @@ class AttnBlockpp1d(nn.Module):
 class NIN3d(nn.Module):
     def __init__(self, in_dim, num_units, init_scale=0.1):
         super().__init__()
-        self.W = nn.Parameter(
-            default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True
-        )
+        self.W = nn.Parameter(default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True)
         self.b = nn.Parameter(torch.zeros(num_units), requires_grad=True)
 
     def forward(self, x):
@@ -188,9 +184,7 @@ class AttnBlockpp3d_old(
         num_groups = min(self.channels // 4, 32)
         while self.channels % num_groups != 0:
             num_groups -= 1
-        self.GroupNorm_0 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=self.channels, eps=1e-6
-        )
+        self.GroupNorm_0 = nn.GroupNorm(num_groups=num_groups, num_channels=self.channels, eps=1e-6)
         self.NIN_0 = NIN3d(self.channels, self.channels)
         self.NIN_1 = NIN3d(self.channels, self.channels)
         self.NIN_2 = NIN3d(self.channels, self.channels)
@@ -219,17 +213,18 @@ class AttnBlockpp3d_old(
 
         C = C // self.n_heads
 
-        w = torch.einsum(
-            "bcnhw,bcnij->bnhwij",
-            q.reshape(B * self.n_heads, C, N, H, W),
-            k.reshape(B * self.n_heads, C, N, H, W),
-        ) * (int(C) ** (-0.5))
+        w = (
+            torch.einsum(
+                "bcnhw,bcnij->bnhwij",
+                q.reshape(B * self.n_heads, C, N, H, W),
+                k.reshape(B * self.n_heads, C, N, H, W),
+            )
+            * (int(C) ** (-0.5))
+        )
         w = torch.reshape(w, (B * self.n_heads, N, H, W, N * H * W))
         w = F.softmax(w, dim=-1)
         w = torch.reshape(w, (B * self.n_heads, N, H, W, N, H, W))
-        h = torch.einsum(
-            "bnhwijk,bcijk->bcnhw", w, v.reshape(B * self.n_heads, C, N, H, W)
-        )
+        h = torch.einsum("bnhwijk,bcijk->bcnhw", w, v.reshape(B * self.n_heads, C, N, H, W))
         h = h.reshape(B, C * self.n_heads, N, H, W)
         h = self.NIN_3(h)
         if not self.skip_rescale:
@@ -336,9 +331,7 @@ class MyConv3d(nn.Module):
         return x
 
 
-def ddpm_conv1x1_3d(
-    in_planes, out_planes, stride=1, bias=True, init_scale=1.0, padding=0, n_frames=1
-):
+def ddpm_conv1x1_3d(in_planes, out_planes, stride=1, bias=True, init_scale=1.0, padding=0, n_frames=1):
     """1x1 convolution with DDPM initialization."""
     conv = MyConv3d(
         in_planes,
@@ -411,9 +404,7 @@ class PseudoConv3d(nn.Module):
             bias=bias,
             dilation=dilation,
         )
-        self.space_conv.weight.data = default_init(init_scale)(
-            self.space_conv.weight.data.shape
-        )
+        self.space_conv.weight.data = default_init(init_scale)(self.space_conv.weight.data.shape)
         nn.init.zeros_(self.space_conv.bias)
 
         self.time_conv = nn.Conv1d(
@@ -425,9 +416,7 @@ class PseudoConv3d(nn.Module):
             bias=bias,
             dilation=dilation,
         )
-        self.time_conv.weight.data = default_init(init_scale)(
-            self.time_conv.weight.data.shape
-        )
+        self.time_conv.weight.data = default_init(init_scale)(self.time_conv.weight.data.shape)
         nn.init.zeros_(self.time_conv.bias)
 
         self.act = act

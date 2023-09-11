@@ -33,9 +33,7 @@ def mmnist_data_loader(
     drop_last=True,
     dset_path=os.path.dirname(os.path.realpath(__file__)),
 ):
-    dset = MovingMNIST(
-        dset_path, is_train, n_frames, num_digits, with_target=with_target
-    )
+    dset = MovingMNIST(dset_path, is_train, n_frames, num_digits, with_target=with_target)
     dloader = data.DataLoader(
         dset,
         batch_size=batch_size,
@@ -97,12 +95,8 @@ def load_mnist(root, is_train=True):
         return data
 
     if is_train:
-        return load_mnist_images(
-            "http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz"
-        )
-    return load_mnist_images(
-        "http://www.cs.toronto.edu/~nitish/unsupervised_video/mnist_test_seq.npy"
-    )
+        return load_mnist_images("http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz")
+    return load_mnist_images("http://www.cs.toronto.edu/~nitish/unsupervised_video/mnist_test_seq.npy")
 
 
 def download(root, filename):
@@ -223,9 +217,7 @@ class MovingMNIST(data.Dataset):
         """
         Get random trajectories for the digits and generate a video.
         """
-        data = np.zeros(
-            (self.n_frames, self.image_size_, self.image_size_), dtype=np.float32
-        )
+        data = np.zeros((self.n_frames, self.image_size_, self.image_size_), dtype=np.float32)
         for n in range(num_digits):
             # Trajectory
             start_y, start_x = self.get_random_trajectory(self.n_frames)
@@ -237,9 +229,7 @@ class MovingMNIST(data.Dataset):
                 bottom = top + self.digit_size_
                 right = left + self.digit_size_
                 # Draw digit
-                data[i, top:bottom, left:right] = np.maximum(
-                    data[i, top:bottom, left:right], digit_image
-                )
+                data[i, top:bottom, left:right] = np.maximum(data[i, top:bottom, left:right], digit_image)
 
         data = data[..., np.newaxis]
 

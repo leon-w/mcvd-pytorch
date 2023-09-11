@@ -7,7 +7,9 @@ import numpy as np
 import torch
 from einops import rearrange
 from PIL import Image
+from skvideo.io import FFmpegWriter
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from datasets import data_transform, get_dataset
 from load_model_from_ckpt import get_sampler, init_samples, load_model
@@ -26,9 +28,7 @@ scorenet, config = load_model(ckpt_path, device)
 sampler = get_sampler(config)
 
 
-dataset, test_dataset = get_dataset(
-    DATA_PATH, config, video_frames_pred=config.data.num_frames
-)
+dataset, test_dataset = get_dataset(DATA_PATH, config, video_frames_pred=config.data.num_frames)
 
 torch.manual_seed(0)
 
@@ -54,11 +54,24 @@ real, cond, cond_mask = conditioning_fn(
 
 
 init = init_samples(len(real), config)
-pred = sampler(
-    init, scorenet, cond=cond, cond_mask=cond_mask, subsample=100, verbose=True
-)
+pred = sampler(init, scorenet, cond=cond, cond_mask=cond_mask, subsample=10, verbose=True)
 
 print(pred.shape)
+
+# writer = FFmpegWriter(
+#     "sample_inference.mp4",
+#     inputdict={"-r": "30"},
+#     outputdict={"-r": "60"},
+# )
+
+# with writer:
+#     for frame in tqdm(pred, desc="Writing video", leave=False):
+#         frame = rearrange(frame, "1 d h w -> h (d w)")
+#         frame = (frame.cpu().numpy() * 255).astype(np.uint8)
+#         frame = np.tile(frame, (3, 1, 1))
+#         writer.writeFrame(frame)
+
+
 # frames = rearrange(pred, "1 d h w -> h (d w)")
 # img = Image.fromarray((frames.cpu().numpy() * 255).astype(np.uint8), mode="L")
 # img.save("pred.png")

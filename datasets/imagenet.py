@@ -23,9 +23,7 @@ def ImageNetDataLoaders(
     distributed=False,
 ):
 
-    normalize = transforms.Normalize(
-        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-    )
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     train_transform = transforms.Compose(
         [
@@ -91,9 +89,7 @@ class ImageNetDataset(Dataset):
         self.transform = transform
         self.classes = classes
 
-        assert os.path.exists(
-            self.h5_path
-        ), f"ImageNet h5 file path does not exist! Given: {self.h5_path}"
+        assert os.path.exists(self.h5_path), f"ImageNet h5 file path does not exist! Given: {self.h5_path}"
         assert self.split in [
             "train",
             "val",
@@ -107,15 +103,9 @@ class ImageNetDataset(Dataset):
         if self.split in ["train", "val"]:
             if len(self.classes) > 0:
                 class_idxs_dict = json.load(
-                    open(
-                        os.path.join(
-                            os.path.dirname(os.path.abspath(__file__)), "imagenet.json"
-                        )
-                    )
+                    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "imagenet.json"))
                 )[self.split]
-                self.class_idxs = sorted(
-                    [i for c in self.classes for i in class_idxs_dict[str(c)]]
-                )
+                self.class_idxs = sorted([i for c in self.classes for i in class_idxs_dict[str(c)]])
                 del class_idxs_dict
                 self.n = len(self.class_idxs)
             else:
@@ -150,14 +140,8 @@ class ImageNetDataset(Dataset):
             self.h5_data = h5py.File(self.h5_path, mode="r")
 
         # Extract info
-        image = self.transform(
-            Image.open(io.BytesIO(self.h5_data["encoded_images"][idx])).convert("RGB")
-        )
-        target = (
-            torch.from_numpy(self.h5_data["targets"][idx])[0].long()
-            if self.split != "test"
-            else None
-        )
+        image = self.transform(Image.open(io.BytesIO(self.h5_data["encoded_images"][idx])).convert("RGB"))
+        target = torch.from_numpy(self.h5_data["targets"][idx])[0].long() if self.split != "test" else None
 
         return image, target
 

@@ -23,14 +23,10 @@ class UCF101_HDF5Maker(HDF5Maker):
     def add_video_data(self, data, dtype=None):
         data, target = data
         self.writer["len"].create_dataset(str(self.count), data=len(data))
-        self.writer["target"].create_dataset(
-            str(self.count), data=target, dtype="uint8"
-        )
+        self.writer["target"].create_dataset(str(self.count), data=target, dtype="uint8")
         self.writer.create_group(str(self.count))
         for i, frame in enumerate(data):
-            self.writer[str(self.count)].create_dataset(
-                str(i), data=frame, dtype=dtype, compression="lzf"
-            )
+            self.writer[str(self.count)].create_dataset(str(i), data=frame, dtype=dtype, compression="lzf")
 
 
 def center_crop(image):
@@ -76,9 +72,7 @@ def read_splits(splits_dir, split_idx, ucf_dir):
     # train
     txt_train = os.path.join(splits_dir, f"trainlist0{split_idx}.txt")
     vids_train = open(txt_train, "r").read().splitlines()
-    vids_train = [
-        os.path.join(ucf_dir, line.split(".avi")[0] + ".avi") for line in vids_train
-    ]
+    vids_train = [os.path.join(ucf_dir, line.split(".avi")[0] + ".avi") for line in vids_train]
     # test
     txt_test = os.path.join(splits_dir, f"testlist0{split_idx}.txt")
     vids_test = open(txt_test, "r").read().splitlines()
@@ -86,9 +80,7 @@ def read_splits(splits_dir, split_idx, ucf_dir):
     # classes
     classes = {
         line.split(" ")[-1]: int(line.split(" ")[0]) - 1
-        for line in open(os.path.join(splits_dir, "classInd.txt"), "r")
-        .read()
-        .splitlines()
+        for line in open(os.path.join(splits_dir, "classInd.txt"), "r").read().splitlines()
     }
     classes_train = [classes[os.path.basename(os.path.dirname(f))] for f in vids_train]
     classes_test = [classes[os.path.basename(os.path.dirname(f))] for f in vids_test]
@@ -140,13 +132,9 @@ def make_h5_from_ucf(
 ):
 
     # H5 maker
-    h5_maker = UCF101_HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = UCF101_HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
-    vids_train, vids_test, classes_train, classes_test = read_splits(
-        splits_dir, split_idx, ucf_dir
-    )
+    vids_train, vids_test, classes_train, classes_test = read_splits(splits_dir, split_idx, ucf_dir)
     print("Train:", len(vids_train), "\nTest", len(vids_test))
 
     h5_maker.writer.create_dataset("num_train", data=len(vids_train))
@@ -169,9 +157,7 @@ if __name__ == "__main__":
     parser.add_argument("--out_dir", type=str, help="Directory to save .hdf5 files")
     parser.add_argument("--ucf_dir", type=str, help="Path to UCF-101 videos")
     parser.add_argument("--splits_dir", type=str, help="Path to ucfTrainTestlist")
-    parser.add_argument(
-        "--split_idx", type=int, choices=[1, 2, 3], default=3, help="Which split to use"
-    )
+    parser.add_argument("--split_idx", type=int, choices=[1, 2, 3], default=3, help="Which split to use")
     parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--vids_per_shard", type=int, default=100000)
     parser.add_argument("--force_h5", type=eval, default=False)

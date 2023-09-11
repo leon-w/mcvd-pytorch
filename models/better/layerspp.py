@@ -59,9 +59,7 @@ class SPADE(nn.Module):
             num_groups = min(norm_nc // 4, 32)
             while norm_nc % num_groups != 0:  # must find another value
                 num_groups -= 1
-            self.param_free_norm = nn.GroupNorm(
-                num_groups=num_groups, num_channels=norm_nc, affine=False, eps=1e-6
-            )
+            self.param_free_norm = nn.GroupNorm(num_groups=num_groups, num_channels=norm_nc, affine=False, eps=1e-6)
         elif param_free_norm_type == "instance":
             self.param_free_norm = nn.InstanceNorm2d(norm_nc, affine=False)
         elif param_free_norm_type == "syncbatch":
@@ -69,18 +67,13 @@ class SPADE(nn.Module):
         elif param_free_norm_type == "batch":
             self.param_free_norm = nn.BatchNorm2d(norm_nc, affine=False)
         else:
-            raise ValueError(
-                "%s is not a recognized param-free norm type in SPADE"
-                % param_free_norm_type
-            )
+            raise ValueError("%s is not a recognized param-free norm type in SPADE" % param_free_norm_type)
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
 
         pw = ks // 2
-        self.mlp_shared = nn.Sequential(
-            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw), nn.ReLU()
-        )
+        self.mlp_shared = nn.Sequential(nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw), nn.ReLU())
         self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
         self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
 
@@ -142,9 +135,7 @@ class MySPADE(nn.Module):
             num_groups = min(norm_nc // 4, 32)
             while norm_nc % num_groups != 0:  # must find another value
                 num_groups -= 1
-            self.param_free_norm = nn.GroupNorm(
-                num_groups=num_groups, num_channels=norm_nc, affine=False, eps=1e-6
-            )
+            self.param_free_norm = nn.GroupNorm(num_groups=num_groups, num_channels=norm_nc, affine=False, eps=1e-6)
         elif param_free_norm_type == "instance":
             self.param_free_norm = nn.InstanceNorm2d(norm_nc, affine=False)
         elif param_free_norm_type == "syncbatch":
@@ -152,10 +143,7 @@ class MySPADE(nn.Module):
         elif param_free_norm_type == "batch":
             self.param_free_norm = nn.BatchNorm2d(norm_nc, affine=False)
         else:
-            raise ValueError(
-                "%s is not a recognized param-free norm type in SPADE"
-                % param_free_norm_type
-            )
+            raise ValueError("%s is not a recognized param-free norm type in SPADE" % param_free_norm_type)
 
         in_ch = label_nc
         if self.is3d:
@@ -178,11 +166,7 @@ class MySPADE(nn.Module):
             B, CN, H, W = segmap.shape
             C = CN // self.num_frames_cond
             segmap = (
-                self.converter(
-                    segmap.reshape(B, C, -1, H, W)
-                    .permute(0, 2, 1, 3, 4)
-                    .reshape(B, -1, H, W)
-                )
+                self.converter(segmap.reshape(B, C, -1, H, W).permute(0, 2, 1, 3, 4).reshape(B, -1, H, W))
                 .reshape(B, -1, C, H, W)
                 .permute(0, 2, 1, 3, 4)
                 .reshape(B, -1, H, W)
@@ -246,9 +230,7 @@ class AttnBlockpp(nn.Module):
         num_groups = min(channels // 4, 32)
         while channels % num_groups != 0:  # must find another value
             num_groups -= 1
-        self.GroupNorm_0 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=channels, eps=1e-6
-        )
+        self.GroupNorm_0 = nn.GroupNorm(num_groups=num_groups, num_channels=channels, eps=1e-6)
         self.NIN_0 = NIN(channels, channels)
         self.NIN_1 = NIN(channels, channels)
         self.NIN_2 = NIN(channels, channels)
@@ -272,11 +254,14 @@ class AttnBlockpp(nn.Module):
 
         C = C // self.n_heads
 
-        w = torch.einsum(
-            "bchw,bcij->bhwij",
-            q.reshape(B * self.n_heads, C, H, W),
-            k.reshape(B * self.n_heads, C, H, W),
-        ) * (int(C) ** (-0.5))
+        w = (
+            torch.einsum(
+                "bchw,bcij->bhwij",
+                q.reshape(B * self.n_heads, C, H, W),
+                k.reshape(B * self.n_heads, C, H, W),
+            )
+            * (int(C) ** (-0.5))
+        )
         w = torch.reshape(w, (B * self.n_heads, H, W, H * W))
         w = F.softmax(w, dim=-1)
         w = torch.reshape(w, (B * self.n_heads, H, W, H, W))
@@ -410,12 +395,8 @@ class ResnetBlockDDPMpp(nn.Module):
             conv1x1_pseudo3d = layers3d.ddpm_conv1x1_pseudo3d
 
         if pseudo3d:
-            conv3x3_ = functools.partial(
-                conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
-            conv1x1_ = functools.partial(
-                conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
+            conv3x3_ = functools.partial(conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None)
+            conv1x1_ = functools.partial(conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None)
         elif is3d:
             conv3x3_ = functools.partial(conv3x3_3d, n_frames=n_frames)
             conv1x1_ = functools.partial(conv1x1_3d, n_frames=n_frames)
@@ -427,9 +408,7 @@ class ResnetBlockDDPMpp(nn.Module):
         num_groups = min(in_ch // 4, 32)
         while in_ch % num_groups != 0:
             num_groups -= 1
-        self.GroupNorm_0 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=in_ch, eps=1e-6
-        )
+        self.GroupNorm_0 = nn.GroupNorm(num_groups=num_groups, num_channels=in_ch, eps=1e-6)
         self.Conv_0 = conv3x3_(in_ch, out_ch)
         if temb_dim is not None:
             self.Dense_0 = nn.Linear(temb_dim, out_ch)
@@ -438,9 +417,7 @@ class ResnetBlockDDPMpp(nn.Module):
         num_groups = min(out_ch // 4, 32)
         while in_ch % num_groups != 0:
             num_groups -= 1
-        self.GroupNorm_1 = nn.GroupNorm(
-            num_groups=num_groups, num_channels=out_ch, eps=1e-6
-        )
+        self.GroupNorm_1 = nn.GroupNorm(num_groups=num_groups, num_channels=out_ch, eps=1e-6)
         self.Dropout_0 = nn.Dropout(dropout)
         self.Conv_1 = conv3x3_(out_ch, out_ch, init_scale=init_scale)
         if in_ch != out_ch:
@@ -505,12 +482,8 @@ class ResnetBlockDDPMppSPADE(nn.Module):
             conv1x1_pseudo3d = layers3d.ddpm_conv1x1_pseudo3d
 
         if pseudo3d:
-            conv3x3_ = functools.partial(
-                conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
-            conv1x1_ = functools.partial(
-                conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
+            conv3x3_ = functools.partial(conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None)
+            conv1x1_ = functools.partial(conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None)
             conv1x1_cond = functools.partial(
                 conv1x1_pseudo3d,
                 n_frames=cond_ch // num_frames_cond,
@@ -519,9 +492,7 @@ class ResnetBlockDDPMppSPADE(nn.Module):
         elif is3d:
             conv3x3_ = functools.partial(conv3x3_3d, n_frames=n_frames)
             conv1x1_ = functools.partial(conv1x1_3d, n_frames=n_frames)
-            conv1x1_cond = functools.partial(
-                conv1x1_3d, n_frames=cond_ch // num_frames_cond
-            )
+            conv1x1_cond = functools.partial(conv1x1_3d, n_frames=cond_ch // num_frames_cond)
         else:
             conv3x3_ = conv3x3
             conv1x1_ = conv1x1
@@ -601,9 +572,7 @@ def get_norm(norm, ch, affine=True):
         num_groups = min(ch // 4, 32)
         while ch % num_groups != 0:  # must find another value
             num_groups -= 1
-        return nn.GroupNorm(
-            num_groups=num_groups, num_channels=ch, eps=1e-5, affine=affine
-        )
+        return nn.GroupNorm(num_groups=num_groups, num_channels=ch, eps=1e-5, affine=affine)
     elif norm == "layer":
         return nn.LayerNorm(normalized_shape=ch, eps=1e-5, elementwise_affine=affine)
     elif norm == "instance":
@@ -671,9 +640,7 @@ class get_act_norm(nn.Module):  # order is norm -> act
     def forward(self, x, emb=None, cond=None):
         if emb is not None:
             # emb = torch.cat([temb, yemb], dim=1) # Combine embeddings
-            emb_out = self.Dense_0(self.act_emb(emb))[
-                :, :, None, None
-            ]  # Linear projection
+            emb_out = self.Dense_0(self.act_emb(emb))[:, :, None, None]  # Linear projection
             # ada-norm as in https://github.com/openai/guided-diffusion
             scale, shift = torch.chunk(emb_out, 2, dim=1)
             if self.is3d:
@@ -735,12 +702,8 @@ class ResnetBlockBigGANppGN(nn.Module):
             conv1x1_pseudo3d = layers3d.ddpm_conv1x1_pseudo3d
 
         if pseudo3d:
-            conv3x3_ = functools.partial(
-                conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
-            conv1x1_ = functools.partial(
-                conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
+            conv3x3_ = functools.partial(conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None)
+            conv1x1_ = functools.partial(conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None)
         elif is3d:
             conv3x3_ = functools.partial(conv3x3_3d, n_frames=n_frames)
             conv1x1_ = functools.partial(conv1x1_3d, n_frames=n_frames)
@@ -851,12 +814,8 @@ class ResnetBlockBigGANppSPADE(nn.Module):
             conv1x1_pseudo3d = layers3d.ddpm_conv1x1_pseudo3d
 
         if pseudo3d:
-            conv3x3_ = functools.partial(
-                conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
-            conv1x1_ = functools.partial(
-                conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None
-            )
+            conv3x3_ = functools.partial(conv3x3_pseudo3d, n_frames=n_frames, act=act if act3d else None)
+            conv1x1_ = functools.partial(conv1x1_pseudo3d, n_frames=n_frames, act=act if act3d else None)
             conv1x1_cond = functools.partial(
                 conv1x1_pseudo3d,
                 n_frames=cond_ch // num_frames_cond,
@@ -865,9 +824,7 @@ class ResnetBlockBigGANppSPADE(nn.Module):
         elif is3d:
             conv3x3_ = functools.partial(conv3x3_3d, n_frames=n_frames)
             conv1x1_ = functools.partial(conv1x1_3d, n_frames=n_frames)
-            conv1x1_cond = functools.partial(
-                conv1x1_3d, n_frames=cond_ch // num_frames_cond
-            )
+            conv1x1_cond = functools.partial(conv1x1_3d, n_frames=cond_ch // num_frames_cond)
         else:
             conv3x3_ = conv3x3
             conv1x1_ = conv1x1

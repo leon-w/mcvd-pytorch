@@ -10,7 +10,9 @@ except ImportError:
 
 # Inception weights ported to Pytorch from
 # http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz
-FID_WEIGHTS_URL = "https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth"
+FID_WEIGHTS_URL = (
+    "https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth"
+)
 
 
 class InceptionV3(nn.Module):
@@ -222,9 +224,7 @@ class FIDInceptionA(torchvision.models.inception.InceptionA):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(
-            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
-        )
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch5x5, branch3x3dbl, branch_pool]
@@ -252,9 +252,7 @@ class FIDInceptionC(torchvision.models.inception.InceptionC):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(
-            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
-        )
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch7x7, branch7x7dbl, branch_pool]
@@ -287,9 +285,7 @@ class FIDInceptionE_1(torchvision.models.inception.InceptionE):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(
-            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
-        )
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch3x3, branch3x3dbl, branch_pool]

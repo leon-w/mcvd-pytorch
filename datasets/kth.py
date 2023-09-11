@@ -29,9 +29,7 @@ class KTHDataset(Dataset):
         self.frames_per_sample = frames_per_sample
         self.random_time = random_time
         self.random_horizontal_flip = random_horizontal_flip
-        self.total_videos = (
-            total_videos  # If we wish to restrict total number of videos (e.g. for val)
-        )
+        self.total_videos = total_videos  # If we wish to restrict total number of videos (e.g. for val)
         self.with_target = with_target
         self.start_at = start_at
 
@@ -59,13 +57,7 @@ class KTHDataset(Dataset):
         return video_len
 
     def __len__(self):
-        return (
-            self.total_videos
-            if self.total_videos > 0
-            else len(self.train_idx)
-            if self.train
-            else len(self.test_idx)
-        )
+        return self.total_videos if self.total_videos > 0 else len(self.train_idx) if self.train else len(self.test_idx)
 
     def max_index(self):
         return len(self.train_idx) if self.train else len(self.test_idx)
@@ -76,11 +68,7 @@ class KTHDataset(Dataset):
         # randomly choose a `frames_per_sample` window of frames in the video
         video_index = round(index / (self.__len__() - 1) * (self.max_index() - 1))
         shard_idx, idx_in_shard = self.videos_ds.get_indices(video_index)
-        idx = (
-            self.train_idx[int(idx_in_shard)]
-            if self.train
-            else self.test_idx[int(idx_in_shard)]
-        )
+        idx = self.train_idx[int(idx_in_shard)] if self.train else self.test_idx[int(idx_in_shard)]
 
         prefinals = []
         flip_p = np.random.randint(2) == 0 if self.random_horizontal_flip else 0
@@ -91,9 +79,7 @@ class KTHDataset(Dataset):
             time_idx += self.start_at
             for i in range(time_idx, min(time_idx + self.frames_per_sample, video_len)):
                 img = f[str(idx)][str(i)][()]
-                arr = transforms.RandomHorizontalFlip(flip_p)(
-                    transforms.ToTensor()(img)
-                )
+                arr = transforms.RandomHorizontalFlip(flip_p)(transforms.ToTensor()(img))
                 prefinals.append(arr)
             target = int(f["target"][str(idx)][()])
 

@@ -24,9 +24,7 @@ def get_normalization(config, conditional=False):
     norm = config.model.normalization
     if conditional:
         if norm == "InstanceNorm++":
-            return functools.partial(
-                ConditionalInstanceNorm2dPlus, num_classes=config.model.num_classes
-            )
+            return functools.partial(ConditionalInstanceNorm2dPlus, num_classes=config.model.num_classes)
         else:
             raise NotImplementedError(f"{norm} not implemented yet.")
     else:
@@ -50,9 +48,7 @@ class ConditionalBatchNorm2d(nn.Module):
         self.bn = nn.BatchNorm2d(num_features, affine=False)
         if self.bias:
             self.embed = nn.Embedding(num_classes, num_features * 2)
-            self.embed.weight.data[
-                :, :num_features
-            ].uniform_()  # Initialise scale at N(1, 0.02)
+            self.embed.weight.data[:, :num_features].uniform_()  # Initialise scale at N(1, 0.02)
             self.embed.weight.data[:, num_features:].zero_()  # Initialise bias at 0
         else:
             self.embed = nn.Embedding(num_classes, num_features)
@@ -62,9 +58,7 @@ class ConditionalBatchNorm2d(nn.Module):
         out = self.bn(x)
         if self.bias:
             gamma, beta = self.embed(y).chunk(2, dim=1)
-            out = gamma.view(-1, self.num_features, 1, 1) * out + beta.view(
-                -1, self.num_features, 1, 1
-            )
+            out = gamma.view(-1, self.num_features, 1, 1) * out + beta.view(-1, self.num_features, 1, 1)
         else:
             gamma = self.embed(y)
             out = gamma.view(-1, self.num_features, 1, 1) * out
@@ -76,14 +70,10 @@ class ConditionalInstanceNorm2d(nn.Module):
         super().__init__()
         self.num_features = num_features
         self.bias = bias
-        self.instance_norm = nn.InstanceNorm2d(
-            num_features, affine=False, track_running_stats=False
-        )
+        self.instance_norm = nn.InstanceNorm2d(num_features, affine=False, track_running_stats=False)
         if bias:
             self.embed = nn.Embedding(num_classes, num_features * 2)
-            self.embed.weight.data[
-                :, :num_features
-            ].uniform_()  # Initialise scale at N(1, 0.02)
+            self.embed.weight.data[:, :num_features].uniform_()  # Initialise scale at N(1, 0.02)
             self.embed.weight.data[:, num_features:].zero_()  # Initialise bias at 0
         else:
             self.embed = nn.Embedding(num_classes, num_features)
@@ -93,9 +83,7 @@ class ConditionalInstanceNorm2d(nn.Module):
         h = self.instance_norm(x)
         if self.bias:
             gamma, beta = self.embed(y).chunk(2, dim=-1)
-            out = gamma.view(-1, self.num_features, 1, 1) * h + beta.view(
-                -1, self.num_features, 1, 1
-            )
+            out = gamma.view(-1, self.num_features, 1, 1) * h + beta.view(-1, self.num_features, 1, 1)
         else:
             gamma = self.embed(y)
             out = gamma.view(-1, self.num_features, 1, 1) * h
@@ -142,9 +130,7 @@ class ConditionalNoneNorm2d(nn.Module):
         self.bias = bias
         if bias:
             self.embed = nn.Embedding(num_classes, num_features * 2)
-            self.embed.weight.data[
-                :, :num_features
-            ].uniform_()  # Initialise scale at N(1, 0.02)
+            self.embed.weight.data[:, :num_features].uniform_()  # Initialise scale at N(1, 0.02)
             self.embed.weight.data[:, num_features:].zero_()  # Initialise bias at 0
         else:
             self.embed = nn.Embedding(num_classes, num_features)
@@ -153,9 +139,7 @@ class ConditionalNoneNorm2d(nn.Module):
     def forward(self, x, y):
         if self.bias:
             gamma, beta = self.embed(y).chunk(2, dim=-1)
-            out = gamma.view(-1, self.num_features, 1, 1) * x + beta.view(
-                -1, self.num_features, 1, 1
-            )
+            out = gamma.view(-1, self.num_features, 1, 1) * x + beta.view(-1, self.num_features, 1, 1)
         else:
             gamma = self.embed(y)
             out = gamma.view(-1, self.num_features, 1, 1) * x
@@ -175,9 +159,7 @@ class InstanceNorm2dPlus(nn.Module):
         super().__init__()
         self.num_features = num_features
         self.bias = bias
-        self.instance_norm = nn.InstanceNorm2d(
-            num_features, affine=False, track_running_stats=False
-        )
+        self.instance_norm = nn.InstanceNorm2d(num_features, affine=False, track_running_stats=False)
         self.alpha = nn.Parameter(torch.zeros(num_features))
         self.gamma = nn.Parameter(torch.zeros(num_features))
         self.alpha.data.normal_(1, 0.02)
@@ -194,9 +176,7 @@ class InstanceNorm2dPlus(nn.Module):
 
         if self.bias:
             h = h + means[..., None, None] * self.alpha[..., None, None]
-            out = self.gamma.view(-1, self.num_features, 1, 1) * h + self.beta.view(
-                -1, self.num_features, 1, 1
-            )
+            out = self.gamma.view(-1, self.num_features, 1, 1) * h + self.beta.view(-1, self.num_features, 1, 1)
         else:
             h = h + means[..., None, None] * self.alpha[..., None, None]
             out = self.gamma.view(-1, self.num_features, 1, 1) * h
@@ -208,17 +188,11 @@ class ConditionalInstanceNorm2dPlus(nn.Module):
         super().__init__()
         self.num_features = num_features
         self.bias = bias
-        self.instance_norm = nn.InstanceNorm2d(
-            num_features, affine=False, track_running_stats=False
-        )
+        self.instance_norm = nn.InstanceNorm2d(num_features, affine=False, track_running_stats=False)
         if bias:
             self.embed = nn.Embedding(num_classes, num_features * 3)
-            self.embed.weight.data[:, : 2 * num_features].normal_(
-                1, 0.02
-            )  # Initialise scale at N(1, 0.02)
-            self.embed.weight.data[
-                :, 2 * num_features :
-            ].zero_()  # Initialise bias at 0
+            self.embed.weight.data[:, : 2 * num_features].normal_(1, 0.02)  # Initialise scale at N(1, 0.02)
+            self.embed.weight.data[:, 2 * num_features :].zero_()  # Initialise bias at 0
         else:
             self.embed = nn.Embedding(num_classes, 2 * num_features)
             self.embed.weight.data.normal_(1, 0.02)
@@ -233,9 +207,7 @@ class ConditionalInstanceNorm2dPlus(nn.Module):
         if self.bias:
             gamma, alpha, beta = self.embed(y).chunk(3, dim=-1)
             h = h + means[..., None, None] * alpha[..., None, None]
-            out = gamma.view(-1, self.num_features, 1, 1) * h + beta.view(
-                -1, self.num_features, 1, 1
-            )
+            out = gamma.view(-1, self.num_features, 1, 1) * h + beta.view(-1, self.num_features, 1, 1)
         else:
             gamma, alpha = self.embed(y).chunk(2, dim=-1)
             h = h + means[..., None, None] * alpha[..., None, None]

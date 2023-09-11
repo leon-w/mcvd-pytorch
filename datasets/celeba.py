@@ -95,10 +95,7 @@ class CelebA(VisionDataset):
             self.download()
 
         if not self._check_integrity():
-            raise RuntimeError(
-                "Dataset not found or corrupted."
-                + " You can use download=True to download it"
-            )
+            raise RuntimeError("Dataset not found or corrupted." + " You can use download=True to download it")
 
         self.transform = transform
         self.target_transform = target_transform
@@ -110,39 +107,24 @@ class CelebA(VisionDataset):
         elif split.lower() == "test":
             split = 2
         else:
-            raise ValueError(
-                'Wrong split entered! Please use split="train" '
-                'or split="valid" or split="test"'
-            )
+            raise ValueError('Wrong split entered! Please use split="train" ' 'or split="valid" or split="test"')
 
-        with open(
-            os.path.join(self.root, self.base_folder, "list_eval_partition.txt"), "r"
-        ) as f:
+        with open(os.path.join(self.root, self.base_folder, "list_eval_partition.txt"), "r") as f:
             splits = pandas.read_csv(f, delim_whitespace=True, header=None, index_col=0)
 
-        with open(
-            os.path.join(self.root, self.base_folder, "identity_CelebA.txt"), "r"
-        ) as f:
-            self.identity = pandas.read_csv(
-                f, delim_whitespace=True, header=None, index_col=0
-            )
+        with open(os.path.join(self.root, self.base_folder, "identity_CelebA.txt"), "r") as f:
+            self.identity = pandas.read_csv(f, delim_whitespace=True, header=None, index_col=0)
 
-        with open(
-            os.path.join(self.root, self.base_folder, "list_bbox_celeba.txt"), "r"
-        ) as f:
+        with open(os.path.join(self.root, self.base_folder, "list_bbox_celeba.txt"), "r") as f:
             self.bbox = pandas.read_csv(f, delim_whitespace=True, header=1, index_col=0)
 
         with open(
-            os.path.join(
-                self.root, self.base_folder, "list_landmarks_align_celeba.txt"
-            ),
+            os.path.join(self.root, self.base_folder, "list_landmarks_align_celeba.txt"),
             "r",
         ) as f:
             self.landmarks_align = pandas.read_csv(f, delim_whitespace=True, header=1)
 
-        with open(
-            os.path.join(self.root, self.base_folder, "list_attr_celeba.txt"), "r"
-        ) as f:
+        with open(os.path.join(self.root, self.base_folder, "list_attr_celeba.txt"), "r") as f:
             self.attr = pandas.read_csv(f, delim_whitespace=True, header=1)
 
         mask = splits[1] == split
@@ -163,9 +145,7 @@ class CelebA(VisionDataset):
                 return False
 
         # Should check a hash of the images
-        return os.path.isdir(
-            os.path.join(self.root, self.base_folder, "img_align_celeba")
-        )
+        return os.path.isdir(os.path.join(self.root, self.base_folder, "img_align_celeba"))
 
     def download(self):
         import zipfile
@@ -175,21 +155,13 @@ class CelebA(VisionDataset):
             return
 
         for (file_id, md5, filename) in self.file_list:
-            download_file_from_google_drive(
-                file_id, os.path.join(self.root, self.base_folder), filename, md5
-            )
+            download_file_from_google_drive(file_id, os.path.join(self.root, self.base_folder), filename, md5)
 
-        with zipfile.ZipFile(
-            os.path.join(self.root, self.base_folder, "img_align_celeba.zip"), "r"
-        ) as f:
+        with zipfile.ZipFile(os.path.join(self.root, self.base_folder, "img_align_celeba.zip"), "r") as f:
             f.extractall(os.path.join(self.root, self.base_folder))
 
     def __getitem__(self, index):
-        X = PIL.Image.open(
-            os.path.join(
-                self.root, self.base_folder, "img_align_celeba", self.filename[index]
-            )
-        )
+        X = PIL.Image.open(os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index]))
 
         target = []
         for t in self.target_type:

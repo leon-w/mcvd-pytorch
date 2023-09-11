@@ -69,17 +69,11 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
                 transforms.ToTensor(),
             ]
         )
-        test_transform = transforms.Compose(
-            [transforms.Resize(config.data.image_size), transforms.ToTensor()]
-        )
+        test_transform = transforms.Compose([transforms.Resize(config.data.image_size), transforms.ToTensor()])
 
     if config.data.dataset.upper() == "CIFAR10":
-        dataset = CIFAR10(
-            data_path, train=True, download=True, transform=tran_transform
-        )
-        test_dataset = CIFAR10(
-            data_path, train=False, download=True, transform=test_transform
-        )
+        dataset = CIFAR10(data_path, train=True, download=True, transform=tran_transform)
+        test_dataset = CIFAR10(data_path, train=False, download=True, transform=test_transform)
 
     elif config.data.dataset.upper() == "CELEBA":
         if config.data.random_flip:
@@ -168,9 +162,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         if config.data.random_flip:
             dataset = FFHQ(
                 path=data_path,
-                transform=transforms.Compose(
-                    [transforms.RandomHorizontalFlip(p=0.5), transforms.ToTensor()]
-                ),
+                transform=transforms.Compose([transforms.RandomHorizontalFlip(p=0.5), transforms.ToTensor()]),
                 resolution=config.data.image_size,
             )
         else:
@@ -199,13 +191,9 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         #                                  std=[0.229, 0.224, 0.225])
         train_transform = transforms.Compose(
             [
-                transforms.RandomResizedCrop(
-                    224 if config.data.image_size < 256 else 256
-                ),
+                transforms.RandomResizedCrop(224 if config.data.image_size < 256 else 256),
                 transforms.Resize(config.data.image_size),
-                transforms.RandomHorizontalFlip(
-                    p=(0.5 if config.data.random_flip else 0.0)
-                ),
+                transforms.RandomHorizontalFlip(p=(0.5 if config.data.random_flip else 0.0)),
                 transforms.ToTensor(),
                 # normalize,
             ]
@@ -219,19 +207,11 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
                 # normalize,
             ]
         )
-        dataset = ImageNetDataset(
-            data_path, "train", train_transform, config.data.classes
-        )
-        test_dataset = ImageNetDataset(
-            data_path, "val", val_transform, config.data.classes
-        )
+        dataset = ImageNetDataset(data_path, "train", train_transform, config.data.classes)
+        test_dataset = ImageNetDataset(data_path, "val", val_transform, config.data.classes)
 
     elif config.data.dataset.upper() == "MOVINGMNIST":
-        n_frames = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
-        )
+        n_frames = config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         dataset = MovingMNIST(
             data_path,
             is_train=True,
@@ -250,11 +230,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         )
 
     elif config.data.dataset.upper() == "STOCHASTICMOVINGMNIST":
-        seq_len = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
-        )
+        seq_len = config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         dataset = StochasticMovingMNIST(
             data_path,
             train=True,
@@ -280,9 +256,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         # |-- test
         # |   |-- shard_0001.hdf5
         frames_per_sample = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
+            config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         )
         dataset = BAIRDataset(
             os.path.join(data_path, "train"),
@@ -303,9 +277,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         # KTH64_h5 (data_path)
         # |-- shard_0001.hdf5
         frames_per_sample = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
+            config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         )
         dataset = KTHDataset(
             data_path,
@@ -331,9 +303,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         # |-- test
         # |   |-- shard_0001.hdf5
         frames_per_sample = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
+            config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         )
         dataset = CityscapesDataset(
             os.path.join(data_path, "train"),
@@ -355,9 +325,7 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
         # UCF101_h5 (data_path)
         # |-- shard_0001.hdf5
         frames_per_sample = (
-            config.data.num_frames_cond
-            + getattr(config.data, "num_frames_future", 0)
-            + video_frames_pred
+            config.data.num_frames_cond + getattr(config.data, "num_frames_future", 0) + video_frames_pred
         )
         dataset = UCF101Dataset(
             data_path,

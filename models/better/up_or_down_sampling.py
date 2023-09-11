@@ -136,9 +136,7 @@ def upsample_conv_2d(x, w, k=None, factor=2, gain=1):
     w = w[..., ::-1, ::-1].permute(0, 2, 1, 3, 4)
     w = torch.reshape(w, (num_groups * inC, -1, convH, convW))
 
-    x = F.conv_transpose2d(
-        x, w, stride=stride, output_padding=output_padding, padding=0
-    )
+    x = F.conv_transpose2d(x, w, stride=stride, output_padding=output_padding, padding=0)
     ## Original TF code.
     # x = tf.nn.conv2d_transpose(
     #     x,
@@ -149,9 +147,7 @@ def upsample_conv_2d(x, w, k=None, factor=2, gain=1):
     #     data_format=data_format)
     ## JAX equivalent
 
-    return upfirdn2d(
-        x, torch.tensor(k, device=x.device), pad=((p + 1) // 2 + factor - 1, p // 2 + 1)
-    )
+    return upfirdn2d(x, torch.tensor(k, device=x.device), pad=((p + 1) // 2 + factor - 1, p // 2 + 1))
 
 
 def conv_downsample_2d(x, w, k=None, factor=2, gain=1):
@@ -269,6 +265,4 @@ def downsample_2d(x, k=None, factor=2, gain=1):
         k = [1] * factor
     k = _setup_kernel(k) * gain
     p = k.shape[0] - factor
-    return upfirdn2d(
-        x, torch.tensor(k, device=x.device), down=factor, pad=((p + 1) // 2, p // 2)
-    )
+    return upfirdn2d(x, torch.tensor(k, device=x.device), down=factor, pad=((p + 1) // 2, p // 2))

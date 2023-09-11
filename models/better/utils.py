@@ -180,9 +180,7 @@ def get_score_fn(sde, model, train=False, continuous=False):
             return score
 
     else:
-        raise NotImplementedError(
-            f"SDE class {sde.__class__.__name__} not yet supported."
-        )
+        raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
     return score_fn
 

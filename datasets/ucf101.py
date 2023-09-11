@@ -25,15 +25,15 @@ class UCF101Dataset(Dataset):
         with_target=True,
     ):
 
-        self.data_path = data_path  # '/path/to/Datasets/UCF101_64_h5' (with .hdf5 file in it), or to the hdf5 file itself
+        self.data_path = (
+            data_path  # '/path/to/Datasets/UCF101_64_h5' (with .hdf5 file in it), or to the hdf5 file itself
+        )
         self.train = train
         self.frames_per_sample = frames_per_sample
         self.image_size = image_size
         self.random_time = random_time
         self.random_horizontal_flip = random_horizontal_flip
-        self.total_videos = (
-            total_videos  # If we wish to restrict total number of videos (e.g. for val)
-        )
+        self.total_videos = total_videos  # If we wish to restrict total number of videos (e.g. for val)
         self.with_target = with_target
 
         # Read h5 files as dataset
@@ -58,13 +58,7 @@ class UCF101Dataset(Dataset):
         return video_len
 
     def __len__(self):
-        return (
-            self.total_videos
-            if self.total_videos > 0
-            else self.num_train_vids
-            if self.train
-            else self.num_test_vids
-        )
+        return self.total_videos if self.total_videos > 0 else self.num_train_vids if self.train else self.num_test_vids
 
     def max_index(self):
         return self.num_train_vids if self.train else self.num_test_vids

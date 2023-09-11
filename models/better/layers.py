@@ -31,9 +31,7 @@ def get_act(config):
     return nn.SiLU()
 
 
-def ncsn_conv1x1(
-    in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=0
-):
+def ncsn_conv1x1(in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=0):
     """1x1 convolution. Same as NCSNv1/v2."""
     conv = nn.Conv2d(
         in_planes,
@@ -50,9 +48,7 @@ def ncsn_conv1x1(
     return conv
 
 
-def variance_scaling(
-    scale, mode, distribution, in_axis=1, out_axis=0, dtype=torch.float32, device="cpu"
-):
+def variance_scaling(scale, mode, distribution, in_axis=1, out_axis=0, dtype=torch.float32, device="cpu"):
     """Ported from JAX."""
 
     def _compute_fans(shape, in_axis=1, out_axis=0):
@@ -70,16 +66,12 @@ def variance_scaling(
         elif mode == "fan_avg":
             denominator = (fan_in + fan_out) / 2
         else:
-            raise ValueError(
-                "invalid mode for variance scaling initializer: {}".format(mode)
-            )
+            raise ValueError("invalid mode for variance scaling initializer: {}".format(mode))
         variance = scale / denominator
         if distribution == "normal":
             return torch.randn(*shape, dtype=dtype, device=device) * np.sqrt(variance)
         elif distribution == "uniform":
-            return (
-                torch.rand(*shape, dtype=dtype, device=device) * 2.0 - 1.0
-            ) * np.sqrt(3 * variance)
+            return (torch.rand(*shape, dtype=dtype, device=device) * 2.0 - 1.0) * np.sqrt(3 * variance)
         else:
             raise ValueError("invalid distribution for variance scaling initializer")
 
@@ -101,17 +93,13 @@ class Dense(nn.Module):
 
 def ddpm_conv1x1(in_planes, out_planes, stride=1, bias=True, init_scale=1.0, padding=0):
     """1x1 convolution with DDPM initialization."""
-    conv = nn.Conv2d(
-        in_planes, out_planes, kernel_size=1, stride=stride, padding=padding, bias=bias
-    )
+    conv = nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, padding=padding, bias=bias)
     conv.weight.data = default_init(init_scale)(conv.weight.data.shape)
     nn.init.zeros_(conv.bias)
     return conv
 
 
-def ncsn_conv3x3(
-    in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=1
-):
+def ncsn_conv3x3(in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=1):
     """3x3 convolution with PyTorch initialization. Same as NCSNv1/NCSNv2."""
     init_scale = 1e-10 if init_scale == 0 else init_scale
     conv = nn.Conv2d(
@@ -128,9 +116,7 @@ def ncsn_conv3x3(
     return conv
 
 
-def ddpm_conv3x3(
-    in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=1
-):
+def ddpm_conv3x3(in_planes, out_planes, stride=1, bias=True, dilation=1, init_scale=1.0, padding=1):
     """3x3 convolution with DDPM initialization."""
     conv = nn.Conv2d(
         in_planes,
@@ -231,9 +217,7 @@ class RCUBlock(nn.Module):
 
 
 class CondRCUBlock(nn.Module):
-    def __init__(
-        self, features, n_blocks, n_stages, num_classes, normalizer, act=nn.ReLU()
-    ):
+    def __init__(self, features, n_blocks, n_stages, num_classes, normalizer, act=nn.ReLU()):
         super().__init__()
 
         for i in range(n_blocks):
@@ -311,9 +295,7 @@ class CondMSFBlock(nn.Module):
 
 
 class RefineBlock(nn.Module):
-    def __init__(
-        self, in_planes, features, act=nn.ReLU(), start=False, end=False, maxpool=True
-    ):
+    def __init__(self, in_planes, features, act=nn.ReLU(), start=False, end=False, maxpool=True):
         super().__init__()
 
         assert isinstance(in_planes, tuple) or isinstance(in_planes, list)
@@ -366,13 +348,9 @@ class CondRefineBlock(nn.Module):
 
         self.adapt_convs = nn.ModuleList()
         for i in range(n_blocks):
-            self.adapt_convs.append(
-                CondRCUBlock(in_planes[i], 2, 2, num_classes, normalizer, act)
-            )
+            self.adapt_convs.append(CondRCUBlock(in_planes[i], 2, 2, num_classes, normalizer, act))
 
-        self.output_convs = CondRCUBlock(
-            features, 3 if end else 1, 2, num_classes, normalizer, act
-        )
+        self.output_convs = CondRCUBlock(features, 3 if end else 1, 2, num_classes, normalizer, act)
 
         if not start:
             self.msf = CondMSFBlock(in_planes, features, num_classes, normalizer)
@@ -398,9 +376,7 @@ class CondRefineBlock(nn.Module):
 
 
 class ConvMeanPool(nn.Module):
-    def __init__(
-        self, input_dim, output_dim, kernel_size=3, biases=True, adjust_padding=False
-    ):
+    def __init__(self, input_dim, output_dim, kernel_size=3, biases=True, adjust_padding=False):
         super().__init__()
         if not adjust_padding:
             conv = nn.Conv2d(
@@ -515,12 +491,8 @@ class ConditionalResidualBlock(nn.Module):
             else:
                 self.conv1 = ncsn_conv3x3(input_dim, input_dim)
                 self.normalize2 = normalization(input_dim, num_classes)
-                self.conv2 = ConvMeanPool(
-                    input_dim, output_dim, 3, adjust_padding=adjust_padding
-                )
-                conv_shortcut = partial(
-                    ConvMeanPool, kernel_size=1, adjust_padding=adjust_padding
-                )
+                self.conv2 = ConvMeanPool(input_dim, output_dim, 3, adjust_padding=adjust_padding)
+                conv_shortcut = partial(ConvMeanPool, kernel_size=1, adjust_padding=adjust_padding)
 
         elif resample is None:
             if dilation > 1:
@@ -583,12 +555,8 @@ class ResidualBlock(nn.Module):
             else:
                 self.conv1 = ncsn_conv3x3(input_dim, input_dim)
                 self.normalize2 = normalization(input_dim)
-                self.conv2 = ConvMeanPool(
-                    input_dim, output_dim, 3, adjust_padding=adjust_padding
-                )
-                conv_shortcut = partial(
-                    ConvMeanPool, kernel_size=1, adjust_padding=adjust_padding
-                )
+                self.conv2 = ConvMeanPool(input_dim, output_dim, 3, adjust_padding=adjust_padding)
+                conv_shortcut = partial(ConvMeanPool, kernel_size=1, adjust_padding=adjust_padding)
 
         elif resample is None:
             if dilation > 1:
@@ -638,9 +606,7 @@ def get_timestep_embedding(timesteps, embedding_dim, max_positions=10000):
     # magic number 10000 is from transformers
     emb = math.log(max_positions) / (half_dim - 1)
     # emb = math.log(2.) / (half_dim - 1)
-    emb = torch.exp(
-        torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb
-    )
+    emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb)
     # emb = tf.range(num_embeddings, dtype=jnp.float32)[:, None] * emb[None, :]
     # emb = tf.cast(timesteps, dtype=jnp.float32)[:, None] * emb[None, :]
     emb = timesteps.float()[:, None] * emb[None, :]
@@ -668,9 +634,7 @@ def contract_inner(x, y):
 class NIN(nn.Module):
     def __init__(self, in_dim, num_units, init_scale=0.1):
         super().__init__()
-        self.W = nn.Parameter(
-            default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True
-        )
+        self.W = nn.Parameter(default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True)
         self.b = nn.Parameter(torch.zeros(num_units), requires_grad=True)
 
     def forward(self, x):
@@ -744,9 +708,7 @@ class Downsample(nn.Module):
 class ResnetBlockDDPM(nn.Module):
     """The ResNet Blocks used in DDPM."""
 
-    def __init__(
-        self, act, in_ch, out_ch=None, temb_dim=None, conv_shortcut=False, dropout=0.1
-    ):
+    def __init__(self, act, in_ch, out_ch=None, temb_dim=None, conv_shortcut=False, dropout=0.1):
         super().__init__()
         if out_ch is None:
             out_ch = in_ch

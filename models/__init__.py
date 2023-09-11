@@ -18,14 +18,10 @@ def get_sigmas(config):
     T = getattr(config.model, "num_classes")
 
     if config.model.sigma_dist == "geometric":
-        return torch.logspace(
-            np.log10(config.model.sigma_begin), np.log10(config.model.sigma_end), T
-        ).to(config.device)
+        return torch.logspace(np.log10(config.model.sigma_begin), np.log10(config.model.sigma_end), T).to(config.device)
 
     elif config.model.sigma_dist == "linear":
-        return torch.linspace(config.model.sigma_begin, config.model.sigma_end, T).to(
-            config.device
-        )
+        return torch.linspace(config.model.sigma_begin, config.model.sigma_end, T).to(config.device)
 
     elif config.model.sigma_dist == "cosine":
         t = torch.linspace(T, 0, T + 1) / T
@@ -97,9 +93,7 @@ def FPNDM_sampler(
     for i, step in enumerate(steps):
 
         t_ = (steps[i] * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
-        t_next = (
-            steps_next[i] * torch.ones(x_mod.shape[0], device=x_mod.device)
-        ).long()
+        t_next = (steps_next[i] * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
         # print(alphas_next[i])
         # print(alphas[i])
         # print(alphas_old[t_next.long() + 1][0])
@@ -166,9 +160,7 @@ def ddim_sampler(
             # new alpha, beta, alpha_prev
             alphas = alphas.index_select(0, steps)
             alphas_prev = torch.cat([alphas[1:], torch.tensor([1.0]).to(alphas)])
-            betas = 1.0 - torch.div(
-                alphas, alphas_prev
-            )  # for some reason we lose a bit of precision here
+            betas = 1.0 - torch.div(alphas, alphas_prev)  # for some reason we lose a bit of precision here
             if gamma:
                 ks_cum = ks_cum.index_select(0, steps)
                 thetas = thetas.index_select(0, steps)
@@ -219,12 +211,8 @@ def ddim_sampler(
             if verbose or log:
                 grad = -1 / (1 - c_alpha).sqrt() * grad
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
-                image_norm = torch.norm(
-                    x_mod.reshape(x_mod.shape[0], -1), dim=-1
-                ).mean()
-                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * (
-                    1 - c_alpha
-                )
+                image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * (1 - c_alpha)
 
             if verbose:
                 print(
@@ -313,9 +301,7 @@ def ddpm_sampler(
             # new alpha, beta, alpha_prev
             alphas = alphas.index_select(0, steps)
             alphas_prev = torch.cat([alphas[1:], torch.tensor([1.0]).to(alphas)])
-            betas = 1.0 - torch.div(
-                alphas, alphas_prev
-            )  # for some reason we lose a bit of precision here
+            betas = 1.0 - torch.div(alphas, alphas_prev)  # for some reason we lose a bit of precision here
             if gamma:
                 ks_cum = ks_cum.index_select(0, steps)
                 thetas = thetas.index_select(0, steps)
@@ -386,12 +372,8 @@ def ddpm_sampler(
             if verbose or log:
                 grad = -1 / (1 - c_alpha).sqrt() * grad
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
-                image_norm = torch.norm(
-                    x_mod.reshape(x_mod.shape[0], -1), dim=-1
-                ).mean()
-                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * (
-                    1 - c_alpha
-                )
+                image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * (1 - c_alpha)
 
             if verbose:
                 print(
@@ -518,9 +500,7 @@ def anneal_Langevin_dynamics(
             if not final_only:
                 images.append(x_mod.to("cpu"))
 
-            if (c == 0 and s == 0) or (c * n_steps_each + s + 1) % max(
-                (L * n_steps_each) // 10, 1
-            ) == 0:
+            if (c == 0 and s == 0) or (c * n_steps_each + s + 1) % max((L * n_steps_each) // 10, 1) == 0:
                 if verbose:
                     print(
                         "ALS level: {:.04f}, step_size: {}, grad_norm: {}, image_norm: {}, snr: {}, grad_mean_norm: {}".format(
@@ -545,9 +525,7 @@ def anneal_Langevin_dynamics(
                     )
 
     if denoise:
-        last_noise = (
-            (len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)
-        ).long()
+        last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
         x_mod = x_mod - sigmas[-1] * scorenet(x_mod, last_noise)
         if not final_only:
             images.append(x_mod.to("cpu"))
@@ -614,9 +592,7 @@ def sparse_anneal_Langevin_dynamics(
 
             x_mod = x_mod - step_size / sigma * grad + (step_size * 2.0).sqrt() * noise
             x_mod_sparse = (
-                x_mod_sparse
-                - step_size / sigma * (1 / sparsity * grad)
-                + (step_size * 2.0).sqrt() * (sparsity * noise)
+                x_mod_sparse - step_size / sigma * (1 / sparsity * grad) + (step_size * 2.0).sqrt() * (sparsity * noise)
             )
 
             grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
@@ -628,9 +604,7 @@ def sparse_anneal_Langevin_dynamics(
             if not final_only:
                 images.append(x_mod_sparse.to("cpu"))
 
-            if (c == 0 and s == 0) or (c * n_steps_each + s + 1) % max(
-                (L * n_steps_each) // 10, 1
-            ) == 0:
+            if (c == 0 and s == 0) or (c * n_steps_each + s + 1) % max((L * n_steps_each) // 10, 1) == 0:
                 if verbose:
                     print(
                         "ALS level: {:.04f}, step_size: {}, grad_norm: {}, image_norm: {}, snr: {}, grad_mean_norm: {}".format(
@@ -655,12 +629,8 @@ def sparse_anneal_Langevin_dynamics(
                     )
 
     if denoise:
-        last_noise = (
-            (len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)
-        ).long()
-        x_mod_sparse = x_mod_sparse - sigmas[-1] * sparsity * scorenet(
-            x_mod, last_noise
-        )
+        last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
+        x_mod_sparse = x_mod_sparse - sigmas[-1] * sparsity * scorenet(x_mod, last_noise)
         if not final_only:
             images.append(x_mod_sparse.to("cpu"))
 
@@ -699,9 +669,7 @@ def anneal_Langevin_dynamics_consistent(
     smallest_invgamma = consistent_sigmas[-1] / consistent_sigmas[-2]
     lowerbound = sigmas[-1] ** 2 * (1 - smallest_invgamma)
     higherbound = sigmas[-1] ** 2 * (1 + smallest_invgamma)
-    assert (
-        lowerbound < step_lr < higherbound
-    ), f"Could not satisfy {lowerbound} < {step_lr} < {higherbound}"
+    assert lowerbound < step_lr < higherbound, f"Could not satisfy {lowerbound} < {step_lr} < {higherbound}"
 
     eta = step_lr / (sigmas[-1] ** 2)
 
@@ -746,9 +714,7 @@ def anneal_Langevin_dynamics_consistent(
         if last_step:
 
             if denoise:
-                last_noise = (
-                    (len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)
-                ).long()
+                last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
                 x_mod = x_mod - sigmas[-1] * scorenet(x_mod, last_noise)
                 if not final_only:
                     images.append(x_mod.to("cpu"))
@@ -769,16 +735,10 @@ def anneal_Langevin_dynamics_consistent(
 
             if verbose or log:
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
-                image_norm = torch.norm(
-                    x_mod.reshape(x_mod.shape[0], -1), dim=-1
-                ).mean()
-                noise_norm = torch.norm(
-                    noise.reshape(noise.shape[0], -1), dim=-1
-                ).mean()
+                image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
+                noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
                 snr = eta * gamma * c_sigma / beta * grad_norm / noise_norm
-                grad_mean_norm = (
-                    torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
-                )
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
 
             if verbose:
                 print(
@@ -837,9 +797,7 @@ def sparse_anneal_Langevin_dynamics_consistent(
     smallest_invgamma = consistent_sigmas[-1] / consistent_sigmas[-2]
     lowerbound = sigmas[-1] ** 2 * (1 - smallest_invgamma)
     higherbound = sigmas[-1] ** 2 * (1 + smallest_invgamma)
-    assert (
-        lowerbound < step_lr < higherbound
-    ), f"Could not satisfy {lowerbound} < {step_lr} < {higherbound}"
+    assert lowerbound < step_lr < higherbound, f"Could not satisfy {lowerbound} < {step_lr} < {higherbound}"
 
     eta = step_lr / (sigmas[-1] ** 2)
 
@@ -885,13 +843,9 @@ def sparse_anneal_Langevin_dynamics_consistent(
         if last_step:
 
             if denoise:
-                last_noise = (
-                    (len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)
-                ).long()
+                last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
                 x_mod = x_mod + sigmas[-1] * scorenet(x_mod, last_noise)
-                x_mod_sparse = x_mod_sparse + sigmas[-1] * 1 / sparsity * scorenet(
-                    x_mod, last_noise
-                )
+                x_mod_sparse = x_mod_sparse + sigmas[-1] * 1 / sparsity * scorenet(x_mod, last_noise)
                 if not final_only:
                     images.append(x_mod.to("cpu"))
 
@@ -912,16 +866,10 @@ def sparse_anneal_Langevin_dynamics_consistent(
 
             if verbose or log:
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
-                image_norm = torch.norm(
-                    x_mod.reshape(x_mod.shape[0], -1), dim=-1
-                ).mean()
-                noise_norm = torch.norm(
-                    noise.reshape(noise.shape[0], -1), dim=-1
-                ).mean()
+                image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
+                noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
                 snr = eta * gamma * c_sigma / beta * grad_norm / noise_norm
-                grad_mean_norm = (
-                    torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
-                )
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
 
             if verbose:
                 print(
@@ -984,18 +932,12 @@ def anneal_Langevin_dynamics_inpainting(
 
         for s in range(n_steps_each):
             images.append(x_mod.to("cpu"))
-            corrupted_half_image = (
-                half_refer_image + torch.randn_like(half_refer_image) * sigma
-            )
+            corrupted_half_image = half_refer_image + torch.randn_like(half_refer_image) * sigma
             x_mod[:, :, :, :cols] = corrupted_half_image
             noise = torch.randn_like(x_mod) * (step_size * 2.0).sqrt()
             grad = scorenet(x_mod, labels)
             x_mod = x_mod + step_size * grad + noise
-            print(
-                "class: {}, step_size: {}, mean {}, max {}".format(
-                    c, step_size, grad.abs().mean(), grad.abs().max()
-                )
-            )
+            print("class: {}, step_size: {}, mean {}, max {}".format(c, step_size, grad.abs().mean(), grad.abs().max()))
             if log:
                 logging.info(
                     "class: {}, step_size: {}, mean {}, max {}".format(
@@ -1051,9 +993,7 @@ def anneal_Langevin_dynamics_interpolation(
                 x_mod.shape[3],
                 device=x_mod.device,
             )
-            angles = torch.linspace(
-                0, np.pi / 2.0, n_interpolations, device=x_mod.device
-            )
+            angles = torch.linspace(0, np.pi / 2.0, n_interpolations, device=x_mod.device)
 
             noise = (
                 noise_p[:, None, ...] * torch.cos(angles)[None, :, None, None, None]

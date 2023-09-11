@@ -143,9 +143,7 @@ class InceptionModule(nn.Module):
             kernel_shape=[3, 3, 3],
             name=name + "/Branch_2/Conv3d_0b_3x3",
         )
-        self.b3a = MaxPool3dSamePadding(
-            kernel_size=[3, 3, 3], stride=(1, 1, 1), padding=0
-        )
+        self.b3a = MaxPool3dSamePadding(kernel_size=[3, 3, 3], stride=(1, 1, 1), padding=0)
         self.b3b = Unit3D(
             in_channels=in_channels,
             output_channels=out_channels[5],
@@ -252,9 +250,7 @@ class InceptionI3d(nn.Module):
             return
 
         end_point = "MaxPool3d_2a_3x3"
-        self.end_points[end_point] = MaxPool3dSamePadding(
-            kernel_size=[1, 3, 3], stride=(1, 2, 2), padding=0
-        )
+        self.end_points[end_point] = MaxPool3dSamePadding(kernel_size=[1, 3, 3], stride=(1, 2, 2), padding=0)
         if self._final_endpoint == end_point:
             return
 
@@ -281,58 +277,42 @@ class InceptionI3d(nn.Module):
             return
 
         end_point = "MaxPool3d_3a_3x3"
-        self.end_points[end_point] = MaxPool3dSamePadding(
-            kernel_size=[1, 3, 3], stride=(1, 2, 2), padding=0
-        )
+        self.end_points[end_point] = MaxPool3dSamePadding(kernel_size=[1, 3, 3], stride=(1, 2, 2), padding=0)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_3b"
-        self.end_points[end_point] = InceptionModule(
-            192, [64, 96, 128, 16, 32, 32], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(192, [64, 96, 128, 16, 32, 32], name + end_point)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_3c"
-        self.end_points[end_point] = InceptionModule(
-            256, [128, 128, 192, 32, 96, 64], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(256, [128, 128, 192, 32, 96, 64], name + end_point)
         if self._final_endpoint == end_point:
             return
 
         end_point = "MaxPool3d_4a_3x3"
-        self.end_points[end_point] = MaxPool3dSamePadding(
-            kernel_size=[3, 3, 3], stride=(2, 2, 2), padding=0
-        )
+        self.end_points[end_point] = MaxPool3dSamePadding(kernel_size=[3, 3, 3], stride=(2, 2, 2), padding=0)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_4b"
-        self.end_points[end_point] = InceptionModule(
-            128 + 192 + 96 + 64, [192, 96, 208, 16, 48, 64], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(128 + 192 + 96 + 64, [192, 96, 208, 16, 48, 64], name + end_point)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_4c"
-        self.end_points[end_point] = InceptionModule(
-            192 + 208 + 48 + 64, [160, 112, 224, 24, 64, 64], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(192 + 208 + 48 + 64, [160, 112, 224, 24, 64, 64], name + end_point)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_4d"
-        self.end_points[end_point] = InceptionModule(
-            160 + 224 + 64 + 64, [128, 128, 256, 24, 64, 64], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(160 + 224 + 64 + 64, [128, 128, 256, 24, 64, 64], name + end_point)
         if self._final_endpoint == end_point:
             return
 
         end_point = "Mixed_4e"
-        self.end_points[end_point] = InceptionModule(
-            128 + 256 + 64 + 64, [112, 144, 288, 32, 64, 64], name + end_point
-        )
+        self.end_points[end_point] = InceptionModule(128 + 256 + 64 + 64, [112, 144, 288, 32, 64, 64], name + end_point)
         if self._final_endpoint == end_point:
             return
 
@@ -344,9 +324,7 @@ class InceptionI3d(nn.Module):
             return
 
         end_point = "MaxPool3d_5a_2x2"
-        self.end_points[end_point] = MaxPool3dSamePadding(
-            kernel_size=[2, 2, 2], stride=(2, 2, 2), padding=0
-        )
+        self.end_points[end_point] = MaxPool3dSamePadding(kernel_size=[2, 2, 2], stride=(2, 2, 2), padding=0)
         if self._final_endpoint == end_point:
             return
 
@@ -400,9 +378,7 @@ class InceptionI3d(nn.Module):
     def forward(self, x):
         for end_point in self.VALID_ENDPOINTS:
             if end_point in self.end_points:
-                x = self._modules[end_point](
-                    x
-                )  # use _modules to work with dataparallel
+                x = self._modules[end_point](x)  # use _modules to work with dataparallel
 
         x = self.logits(self.dropout(self.avg_pool(x)))
         if self._spatial_squeeze:

@@ -22,12 +22,8 @@ from runners import *
 def parse_args_and_config():
     parser = argparse.ArgumentParser(description=globals()["__doc__"])
 
-    parser.add_argument(
-        "--config", type=str, required=True, help="Path to the config file"
-    )
-    parser.add_argument(
-        "--data_path", type=str, required=True, help="Path to the dataset"
-    )
+    parser.add_argument("--config", type=str, required=True, help="Path to the config file")
+    parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
     parser.add_argument("--seed", type=int, default=1234, help="Random seed")
     parser.add_argument(
         "--exp",
@@ -36,18 +32,14 @@ def parse_args_and_config():
         required=True,
         help="Path for saving running related data.",
     )
-    parser.add_argument(
-        "--comment", type=str, default="", help="A string for experiment comment"
-    )
+    parser.add_argument("--comment", type=str, default="", help="A string for experiment comment")
     parser.add_argument(
         "--verbose",
         type=str,
         default="info",
         help="Verbose level: info | debug | warning | critical",
     )
-    parser.add_argument(
-        "--resume_training", action="store_true", help="Whether to resume training"
-    )
+    parser.add_argument("--resume_training", action="store_true", help="Whether to resume training")
 
     parser.add_argument("--test", action="store_true", help="Whether to test the model")
 
@@ -63,13 +55,9 @@ def parse_args_and_config():
         default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets"),
         help="Path to directory containing fid_stats npz files",
     )
-    parser.add_argument(
-        "--stats_download", action="store_true", help="Whether to download fid stats"
-    )
+    parser.add_argument("--stats_download", action="store_true", help="Whether to download fid stats")
 
-    parser.add_argument(
-        "--fast_fid", action="store_true", help="Whether to do fast fid test"
-    )
+    parser.add_argument("--fast_fid", action="store_true", help="Whether to do fast fid test")
     parser.add_argument(
         "--fid_batch_size",
         type=int,
@@ -127,18 +115,14 @@ def parse_args_and_config():
         help="Model checkpoint freq to load, when using test/fast_fid",
     )
 
-    parser.add_argument(
-        "--no_ema", action="store_true", help="Don't use Exponential Moving Average"
-    )
+    parser.add_argument("--no_ema", action="store_true", help="Don't use Exponential Moving Average")
 
     parser.add_argument(
         "--ni",
         action="store_true",
         help="No interaction. Suitable for Slurm Job launcher",
     )
-    parser.add_argument(
-        "--interact", action="store_true", help="Whether to interact"
-    )  # basically do nothing
+    parser.add_argument("--interact", action="store_true", help="Whether to interact")  # basically do nothing
 
     ### Above are options are from the original code, below are new options for videos
 
@@ -212,26 +196,15 @@ def parse_args_and_config():
             config["data"]["classes"] = []
         elif config["data"]["classes"] == "dogs":
             config["data"]["classes"] = list(range(151, 269))
-        assert isinstance(
-            config["data"]["classes"], list
-        ), "config['data']['classes'] must be a list!"
-    config["sampling"]["subsample"] = args.subsample or config["sampling"].get(
-        "subsample"
-    )
-    config["fast_fid"]["batch_size"] = (
-        args.fid_batch_size or config["fast_fid"]["batch_size"]
-    )
-    config["fast_fid"]["num_samples"] = (
-        args.fid_num_samples or config["fast_fid"]["num_samples"]
-    )
+        assert isinstance(config["data"]["classes"], list), "config['data']['classes'] must be a list!"
+    config["sampling"]["subsample"] = args.subsample or config["sampling"].get("subsample")
+    config["fast_fid"]["batch_size"] = args.fid_batch_size or config["fast_fid"]["batch_size"]
+    config["fast_fid"]["num_samples"] = args.fid_num_samples or config["fast_fid"]["num_samples"]
     config["fast_fid"]["pr_nn_k"] = args.pr_nn_k or config["fast_fid"].get("pr_nn_k", 3)
     if args.no_ema:
         config["model"]["ema"] = False
 
-    if (
-        config["sampling"].get("fvd", False)
-        and config["sampling"].get("num_frames_pred", 10) < 10
-    ):
+    if config["sampling"].get("fvd", False) and config["sampling"].get("num_frames_pred", 10) < 10:
         print(
             " <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< WARNING: Cannot test FVD when sampling.num_frames_pred < 10 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
         )
@@ -244,14 +217,13 @@ def parse_args_and_config():
         noise_in_cond = True  # if False, then wed predict the input-cond frames z, but the z is zero everywhere which is weird and seems irrelevant to predict. So we stick to the noise_in_cond case.
 
     assert not config["model"].get("cond_emb", False) or (
-        config["model"].get("cond_emb", False)
-        and config["data"].get("prob_mask_cond", 0.0) > 0
+        config["model"].get("cond_emb", False) and config["data"].get("prob_mask_cond", 0.0) > 0
     )
 
     if config["data"].get("prob_mask_sync", False):
-        assert config["data"].get("prob_mask_cond", 0.0) > 0 and config["data"].get(
-            "prob_mask_cond", 0.0
-        ) == config["data"].get("prob_mask_future", 0.0)
+        assert config["data"].get("prob_mask_cond", 0.0) > 0 and config["data"].get("prob_mask_cond", 0.0) == config[
+            "data"
+        ].get("prob_mask_future", 0.0)
 
     # if config['sampling'].get('preds_per_test', 1) > 1:
     #     assert config['sampling'].get('preds_per_test', 1) >= 5, f"preds_per_test can be either 1, or >=5. Got {config['sampling'].get('preds_per_test', 1)}"
@@ -271,9 +243,7 @@ def parse_args_and_config():
                 if args.ni:
                     overwrite = True
                 else:
-                    response = input(
-                        f"Folder {args.log_path} already exists.\nOverwrite? (Y/N)"
-                    )
+                    response = input(f"Folder {args.log_path} already exists.\nOverwrite? (Y/N)")
                     if response.upper() == "Y":
                         overwrite = True
 
@@ -308,9 +278,7 @@ def parse_args_and_config():
 
         handler1 = logging.StreamHandler()
         handler2 = logging.FileHandler(os.path.join(args.log_path, "stdout.txt"))
-        formatter = logging.Formatter(
-            "%(levelname)s - %(filename)s - %(asctime)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(levelname)s - %(filename)s - %(asctime)s - %(message)s")
         handler1.setFormatter(formatter)
         handler2.setFormatter(formatter)
         logger = logging.getLogger()
@@ -324,9 +292,7 @@ def parse_args_and_config():
             raise ValueError("level {} not supported".format(args.verbose))
 
         handler1 = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(levelname)s - %(filename)s - %(asctime)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(levelname)s - %(filename)s - %(asctime)s - %(message)s")
         handler1.setFormatter(formatter)
         logger = logging.getLogger()
         logger.addHandler(handler1)
@@ -343,14 +309,10 @@ def parse_args_and_config():
 
             if new_config.sampling.final_only:
                 os.makedirs(os.path.join(args.exp, "image_samples"), exist_ok=True)
-                args.image_folder = os.path.join(
-                    args.exp, "image_samples", args.image_folder
-                )
+                args.image_folder = os.path.join(args.exp, "image_samples", args.image_folder)
             else:
                 os.makedirs(
-                    os.path.join(
-                        args.exp, f"image_samples_{new_config.sampling.ckpt_id}"
-                    ),
+                    os.path.join(args.exp, f"image_samples_{new_config.sampling.ckpt_id}"),
                     exist_ok=True,
                 )
                 args.image_folder = os.path.join(
@@ -366,9 +328,7 @@ def parse_args_and_config():
                 if args.ni:
                     overwrite = True
                 else:
-                    response = input(
-                        f"Image folder {args.image_folder} already exists.\nOverwrite? (Y/N)"
-                    )
+                    response = input(f"Image folder {args.image_folder} already exists.\nOverwrite? (Y/N)")
                     if response.upper() == "Y":
                         overwrite = True
 
@@ -392,9 +352,7 @@ def parse_args_and_config():
 
             # if new_config.sampling.final_only:
             os.makedirs(os.path.join(args.exp, "video_samples"), exist_ok=True)
-            args.video_folder = os.path.join(
-                args.exp, "video_samples", args.video_folder
-            )
+            args.video_folder = os.path.join(args.exp, "video_samples", args.video_folder)
             # else:
             #     os.makedirs(os.path.join(args.exp, f'image_samples_{new_config.sampling.ckpt_id}'), exist_ok=True)
             #     args.image_folder = os.path.join(args.exp, f'image_samples_{new_config.sampling.ckpt_id}', args.image_folder)
@@ -406,9 +364,7 @@ def parse_args_and_config():
                 if args.ni:
                     overwrite = True
                 else:
-                    response = input(
-                        f"Video folder {args.video_folder} already exists.\nOverwrite? (Y/N)"
-                    )
+                    response = input(f"Video folder {args.video_folder} already exists.\nOverwrite? (Y/N)")
                     if response.upper() == "Y":
                         overwrite = True
 
@@ -429,9 +385,7 @@ def parse_args_and_config():
 
             new_config.fast_fid.begin_ckpt = args.ckpt or new_config.fast_fid.begin_ckpt
             new_config.fast_fid.end_ckpt = args.end_ckpt or new_config.fast_fid.end_ckpt
-            new_config.fast_fid.freq = args.freq or getattr(
-                new_config.fast_fid, "freq", 5000
-            )
+            new_config.fast_fid.freq = args.freq or getattr(new_config.fast_fid, "freq", 5000)
 
             os.makedirs(os.path.join(args.exp, "fid_samples"), exist_ok=True)
             args.image_folder = os.path.join(args.exp, "fid_samples", args.image_folder)
@@ -568,9 +522,7 @@ def main():
     except:
         logging.error(traceback.format_exc())
 
-    logging.info(
-        datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d %H:%M:%S")
-    )
+    logging.info(datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d %H:%M:%S"))
 
     return runner, args, config
 

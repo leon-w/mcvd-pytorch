@@ -56,9 +56,7 @@ class StochasticMovingMNIST(object):
             path,
             train=train,
             download=True,
-            transform=transforms.Compose(
-                [transforms.Resize(self.digit_size), transforms.ToTensor()]
-            ),
+            transform=transforms.Compose([transforms.Resize(self.digit_size), transforms.ToTensor()]),
         )
 
         self.N = len(self.data) if total_videos == -1 else total_videos
@@ -77,9 +75,7 @@ class StochasticMovingMNIST(object):
         self.set_seed(index)
         image_size = self.image_size
         digit_size = self.digit_size
-        x = np.zeros(
-            (self.seq_len, image_size, image_size, self.channels), dtype=np.float32
-        )
+        x = np.zeros((self.seq_len, image_size, image_size, self.channels), dtype=np.float32)
         for n in range(self.num_digits):
             idx = np.random.randint(self.N)
             digit, _ = self.data[idx]

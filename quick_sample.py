@@ -32,9 +32,7 @@ from models import ddpm_sampler
 
 def parse_args():
     parser = argparse.ArgumentParser(description=globals()["__doc__"])
-    parser.add_argument(
-        "--ckpt_path", type=str, required=True, help="Path to checkpoint.pt"
-    )
+    parser.add_argument("--ckpt_path", type=str, required=True, help="Path to checkpoint.pt")
     parser.add_argument("--data_path", type=str, help="Path to the dataset")
     parser.add_argument("--save_path", type=str, help="Path to the dataset")
     args = parser.parse_args()
@@ -56,9 +54,7 @@ def load_model(ckpt_path, device):
         states = torch.load(ckpt_path, map_location=config.device)
     else:
         states = torch.load(ckpt_path, map_location="cpu")
-        states[0] = OrderedDict(
-            [(k.replace("module.", ""), v) for k, v in states[0].items()]
-        )
+        states[0] = OrderedDict([(k.replace("module.", ""), v) for k, v in states[0].items()])
     scorenet.load_state_dict(states[0], strict=False)
     if config.model.ema:
         ema_helper = EMAHelper(mu=config.model.ema_rate)

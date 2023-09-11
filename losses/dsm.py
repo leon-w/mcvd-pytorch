@@ -39,16 +39,8 @@ def anneal_dsm_score_estimation(
             labels = torch.randint(0, len(alphas), (x.shape[0],), device=x.device)
         used_alphas = alphas[labels].reshape(x.shape[0], *([1] * len(x.shape[1:])))
         if gamma:
-            used_k = (
-                net.k_cum[labels]
-                .reshape(x.shape[0], *([1] * len(x.shape[1:])))
-                .repeat(1, *x.shape[1:])
-            )
-            used_theta = (
-                net.theta_t[labels]
-                .reshape(x.shape[0], *([1] * len(x.shape[1:])))
-                .repeat(1, *x.shape[1:])
-            )
+            used_k = net.k_cum[labels].reshape(x.shape[0], *([1] * len(x.shape[1:]))).repeat(1, *x.shape[1:])
+            used_theta = net.theta_t[labels].reshape(x.shape[0], *([1] * len(x.shape[1:]))).repeat(1, *x.shape[1:])
             z = Gamma(used_k, 1 / used_theta).sample()
             z = (z - used_k * used_theta) / (1 - used_alphas).sqrt()
         else:
@@ -67,9 +59,7 @@ def anneal_dsm_score_estimation(
         def pow_(x):
             return 1 / 2.0 * x.square()
 
-    loss = pow_(
-        (z - scorenet(perturbed_x, labels, cond_mask=cond_mask)).reshape(len(x), -1)
-    ).sum(dim=-1)
+    loss = pow_((z - scorenet(perturbed_x, labels, cond_mask=cond_mask)).reshape(len(x), -1)).sum(dim=-1)
 
     if hook is not None:
         hook(loss, labels)

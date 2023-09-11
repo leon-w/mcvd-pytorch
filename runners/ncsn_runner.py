@@ -139,21 +139,15 @@ def conditioning_fn(
     if future > 0:
 
         if prob_mask_future == 1.0:
-            future_frames = torch.zeros(
-                len(X), config.data.channels * future, imsize, imsize
-            )
+            future_frames = torch.zeros(len(X), config.data.channels * future, imsize, imsize)
             # future_mask = torch.zeros(len(X), 1, 1, 1).to(torch.int32) # make 0,1
         else:
-            future_frames = X[:, cond + train : cond + train + future].reshape(
-                len(X), -1, imsize, imsize
-            )
+            future_frames = X[:, cond + train : cond + train + future].reshape(len(X), -1, imsize, imsize)
             if prob_mask_future > 0.0:
                 if getattr(config.data, "prob_mask_sync", False):
                     future_mask = cond_mask
                 else:
-                    future_mask = (
-                        torch.rand(X.shape[0], device=X.device) > prob_mask_future
-                    )
+                    future_mask = torch.rand(X.shape[0], device=X.device) > prob_mask_future
                 future_frames = future_mask.reshape(-1, 1, 1, 1) * future_frames
             #     future_mask = future_mask.to(torch.int32) # make 0,1
             # else:
@@ -188,9 +182,7 @@ def load_model(ckpt_path, device):
         states = torch.load(ckpt_path, map_location=config.device)
     else:
         states = torch.load(ckpt_path, map_location="cpu")
-        states[0] = OrderedDict(
-            [(k.replace("module.", ""), v) for k, v in states[0].items()]
-        )
+        states[0] = OrderedDict([(k.replace("module.", ""), v) for k, v in states[0].items()])
     scorenet.load_state_dict(states[0], strict=False)
     if config.model.ema:
         ema_helper = EMAHelper(mu=config.model.ema_rate)
@@ -212,18 +204,14 @@ def get_model(config):
             UNetMore_DDPM,
         )  # This lets the code run on CPU when 'unetmore' is not used
 
-        return UNetMore_DDPM(config).to(
-            config.device
-        )  # .to(memory_format=torch.channels_last).to(config.device)
+        return UNetMore_DDPM(config).to(config.device)  # .to(memory_format=torch.channels_last).to(config.device)
     elif arch in ["unetmore3d", "unetmorepseudo3d"]:
         from models.better.ncsnpp_more import (
             UNetMore_DDPM,
         )  # This lets the code run on CPU when 'unetmore' is not used
 
         # return UNetMore_DDPM(config).to(memory_format=torch.channels_last_3d).to(config.device) # channels_last_3d doesn't work!
-        return UNetMore_DDPM(config).to(
-            config.device
-        )  # .to(memory_format=torch.channels_last).to(config.device)
+        return UNetMore_DDPM(config).to(config.device)  # .to(memory_format=torch.channels_last).to(config.device)
 
     else:
         Exception("arch is not valid [ncsn, unet, unetmore, unetmore3d]")
@@ -240,12 +228,10 @@ class NCSNRunner:
         self.get_mode()
 
     def get_mode(self):
-        self.condf, self.condp = self.config.data.num_frames_cond, getattr(
-            self.config.data, "prob_mask_cond", 0.0
+        self.condf, self.condp = self.config.data.num_frames_cond, getattr(self.config.data, "prob_mask_cond", 0.0)
+        self.futrf, self.futrp = getattr(self.config.data, "num_frames_future", 0), getattr(
+            self.config.data, "prob_mask_future", 0.0
         )
-        self.futrf, self.futrp = getattr(
-            self.config.data, "num_frames_future", 0
-        ), getattr(self.config.data, "prob_mask_future", 0.0)
         self.prob_mask_sync = getattr(self.config.data, "prob_mask_sync", False)
         if not getattr(self.config.sampling, "ssim", False):
             if getattr(self.config.sampling, "fvd", False):
@@ -254,36 +240,22 @@ class NCSNRunner:
                 self.mode_pred, self.mode_interp, self.mode_gen = None, None, None
         elif self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
             self.mode_pred, self.mode_interp, self.mode_gen = "one", None, None
-        elif (
-            self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-        ):  # (1) Interpolation
+        elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
             self.mode_pred, self.mode_interp, self.mode_gen = None, "one", None
-        elif (
-            self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-        ):  # (1) Interp + (2) Pred
+        elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
             self.mode_pred, self.mode_interp, self.mode_gen = "two", "one", None
         elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
             self.mode_pred, self.mode_interp, self.mode_gen = "one", None, "three"
         elif (
-            self.condp > 0.0
-            and self.futrf > 0
-            and self.futrp > 0.0
-            and not self.prob_mask_sync
+            self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
         ):  # (1) Interp + (2) Pred + (3) Gen
             self.mode_pred, self.mode_interp, self.mode_gen = "two", "one", "three"
-        elif (
-            self.condp > 0.0
-            and self.futrf > 0
-            and self.futrp > 0.0
-            and self.prob_mask_sync
-        ):  # (1) Interp + (3) Gen
+        elif self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync:  # (1) Interp + (3) Gen
             self.mode_pred, self.mode_interp, self.mode_gen = None, "one", "three"
 
     def get_time(self):
         curr_time = time.time()
-        curr_time_str = datetime.datetime.fromtimestamp(curr_time).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        curr_time_str = datetime.datetime.fromtimestamp(curr_time).strftime("%Y-%m-%d %H:%M:%S")
         elapsed = str(datetime.timedelta(seconds=(curr_time - self.start_time)))
         return curr_time_str, elapsed
 
@@ -297,9 +269,7 @@ class NCSNRunner:
             time_hr = time_day_hr[0]
         # Hr
         hrs = time_hr.split(":")
-        return (
-            float(days) * 24 + float(hrs[0]) + float(hrs[1]) / 60 + float(hrs[2]) / 3600
-        )
+        return float(days) * 24 + float(hrs[0]) + float(hrs[1]) / 60 + float(hrs[2]) / 3600
 
     def train(self):
         # If FFHQ tfrecord, reset dataloader
@@ -337,9 +307,7 @@ class NCSNRunner:
             )
             test_iter = iter(test_loader)
 
-        self.config.input_dim = (
-            self.config.data.image_size ** 2 * self.config.data.channels
-        )
+        self.config.input_dim = self.config.data.image_size ** 2 * self.config.data.channels
 
         # tb_logger = self.config.tb_logger
 
@@ -347,9 +315,7 @@ class NCSNRunner:
         scorenet = torch.nn.DataParallel(scorenet)
 
         logging.info(f"Number of parameters: {count_parameters(scorenet)}")
-        logging.info(
-            f"Number of trainable parameters: {count_training_parameters(scorenet)}"
-        )
+        logging.info(f"Number of trainable parameters: {count_training_parameters(scorenet)}")
 
         optimizer = get_optimizer(self.config, scorenet.parameters())
 
@@ -384,9 +350,7 @@ class NCSNRunner:
 
         if self.config.training.log_all_sigmas:
             ### Commented out training time logging to save time.
-            test_loss_per_sigma = [
-                None for _ in range(getattr(self.config.model, "num_classes"))
-            ]
+            test_loss_per_sigma = [None for _ in range(getattr(self.config.model, "num_classes"))]
 
             def hook(loss, labels):
                 # for i in range(len(sigmas)):
@@ -448,9 +412,7 @@ class NCSNRunner:
         if self.version == "SMLD":
             init_samples = torch.rand(init_samples_shape, device=self.config.device)
             init_samples = data_transform(self.config, init_samples)
-        elif (
-            self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM"
-        ):
+        elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
             if getattr(self.config.model, "gamma", False):
                 used_k, used_theta = net.k_cum[0], net.theta_t[0]
                 z = (
@@ -463,9 +425,7 @@ class NCSNRunner:
                 )
                 init_samples = z - used_k * used_theta  # we don't scale here
             else:
-                init_samples = torch.randn(
-                    init_samples_shape, device=self.config.device
-                )
+                init_samples = torch.randn(init_samples_shape, device=self.config.device)
 
         # Sampler
         sampler = self.get_sampler()
@@ -528,9 +488,7 @@ class NCSNRunner:
                 itr_time = time.time() - itr_start
                 self.total_train_time += itr_time
                 self.time_train.update(
-                    self.convert_time_stamp_to_hrs(
-                        str(datetime.timedelta(seconds=self.total_train_time))
-                    )
+                    self.convert_time_stamp_to_hrs(str(datetime.timedelta(seconds=self.total_train_time)))
                     + self.time_train_prev
                 )
 
@@ -539,19 +497,12 @@ class NCSNRunner:
                 self.epochs.update(epoch + (batch + 1) / len(dataloader))
                 self.lr_meter.update(lr)
                 self.grad_norm.update(grad_norm.item())
-                if (
-                    step == 1
-                    or step % getattr(self.config.training, "log_freq", 1) == 0
-                ):
+                if step == 1 or step % getattr(self.config.training, "log_freq", 1) == 0:
                     logging.info(
                         "elapsed: {}, train time: {:.04f}, mem: {:.03f}GB, GPUmem: {:.03f}GB, step: {}, lr: {:.06f}, grad: {:.04f}, loss: {:.04f}".format(
                             str(
-                                datetime.timedelta(
-                                    seconds=(time.time() - self.start_time)
-                                )
-                                + datetime.timedelta(
-                                    seconds=self.time_elapsed_prev * 3600
-                                )
+                                datetime.timedelta(seconds=(time.time() - self.start_time))
+                                + datetime.timedelta(seconds=self.time_elapsed_prev * 3600)
                             )[:-3],
                             self.time_train.val,
                             get_proc_mem(),
@@ -571,9 +522,7 @@ class NCSNRunner:
                     break
 
                 # Save model
-                if (
-                    step % 1000 == 0 and step != 0
-                ) or step % self.config.training.snapshot_freq == 0:
+                if (step % 1000 == 0 and step != 0) or step % self.config.training.snapshot_freq == 0:
                     states = [
                         scorenet.state_dict(),
                         optimizer.state_dict(),
@@ -583,13 +532,9 @@ class NCSNRunner:
                     if self.config.model.ema:
                         states.append(ema_helper.state_dict())
                     logging.info(f"Saving checkpoint.pt in {self.args.log_path}")
-                    torch.save(
-                        states, os.path.join(self.args.log_path, "checkpoint.pt")
-                    )
+                    torch.save(states, os.path.join(self.args.log_path, "checkpoint.pt"))
                     if step % self.config.training.snapshot_freq == 0:
-                        ckpt_path = os.path.join(
-                            self.args.log_path, "checkpoint_{}.pt".format(step)
-                        )
+                        ckpt_path = os.path.join(self.args.log_path, "checkpoint_{}.pt".format(step))
                         logging.info(f"Saving {ckpt_path}")
                         torch.save(states, ckpt_path)
 
@@ -598,10 +543,7 @@ class NCSNRunner:
                 if (
                     step == 1
                     or step % self.config.training.val_freq == 0
-                    or (
-                        step % self.config.training.snapshot_freq == 0
-                        or step % self.config.training.sample_freq == 0
-                    )
+                    or (step % self.config.training.snapshot_freq == 0 or step % self.config.training.sample_freq == 0)
                     and self.config.training.snapshot_sampling
                 ):
 
@@ -628,9 +570,7 @@ class NCSNRunner:
                         test_X,
                         num_frames_pred=self.config.data.num_frames,
                         prob_mask_cond=getattr(self.config.data, "prob_mask_cond", 0.0),
-                        prob_mask_future=getattr(
-                            self.config.data, "prob_mask_future", 0.0
-                        ),
+                        prob_mask_future=getattr(self.config.data, "prob_mask_future", 0.0),
                         conditional=conditional,
                     )
 
@@ -645,9 +585,7 @@ class NCSNRunner:
                             gamma=getattr(self.config.model, "gamma", False),
                             L1=getattr(self.config.training, "L1", False),
                             hook=test_hook,
-                            all_frames=getattr(
-                                self.config.model, "output_all_frames", False
-                            ),
+                            all_frames=getattr(self.config.model, "output_all_frames", False),
                         )
                     # tb_logger.add_scalar('test_loss', test_dsm_loss, global_step=step)
                     # test_tb_hook()
@@ -655,12 +593,8 @@ class NCSNRunner:
                     logging.info(
                         "elapsed: {}, step: {}, mem: {:.03f}GB, GPUmem: {:.03f}GB, test_loss: {:.04f}".format(
                             str(
-                                datetime.timedelta(
-                                    seconds=(time.time() - self.start_time)
-                                )
-                                + datetime.timedelta(
-                                    seconds=self.time_elapsed_prev * 3600
-                                )
+                                datetime.timedelta(seconds=(time.time() - self.start_time))
+                                + datetime.timedelta(seconds=self.time_elapsed_prev * 3600)
                             )[:-3],
                             step,
                             get_proc_mem(),
@@ -679,8 +613,7 @@ class NCSNRunner:
 
                 # Sample from model
                 if (
-                    step % self.config.training.snapshot_freq == 0
-                    or step % self.config.training.sample_freq == 0
+                    step % self.config.training.snapshot_freq == 0 or step % self.config.training.sample_freq == 0
                 ) and self.config.training.snapshot_sampling:
 
                     logging.info(f"Saving images in {self.args.log_sample_path}")
@@ -692,9 +625,7 @@ class NCSNRunner:
                         and self.config.training.snapshot_sampling
                     ):  # only at snapshot_freq, not at sample_freq
 
-                        vid_metrics = self.video_gen(
-                            scorenet=test_scorenet, ckpt=step, train=True
-                        )
+                        vid_metrics = self.video_gen(scorenet=test_scorenet, ckpt=step, train=True)
 
                         if "mse" in vid_metrics.keys():
                             self.mses.update(vid_metrics["mse"], step)
@@ -740,13 +671,7 @@ class NCSNRunner:
                         # Show best results for every metric
 
                         if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
-                            (
-                                self.mses_pred,
-                                self.psnrs_pred,
-                                self.ssims_pred,
-                                self.lpipss_pred,
-                                self.fvds_pred,
-                            ) = (
+                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
                                 self.mses,
                                 self.psnrs,
                                 self.ssims,
@@ -768,9 +693,7 @@ class NCSNRunner:
                                 self.best_fvd,
                                 self.calc_fvd1,
                             )
-                        elif (
-                            self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-                        ):  # (1) Interpolation
+                        elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
                             (
                                 self.mses_interp,
                                 self.psnrs_interp,
@@ -799,9 +722,7 @@ class NCSNRunner:
                                 self.best_fvd,
                                 self.calc_fvd1,
                             )
-                        elif (
-                            self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-                        ):  # (1) Interp + (2) Pred
+                        elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
                             (
                                 self.mses_interp,
                                 self.psnrs_interp,
@@ -815,13 +736,7 @@ class NCSNRunner:
                                 self.lpipss,
                                 self.fvds,
                             )
-                            (
-                                self.mses_pred,
-                                self.psnrs_pred,
-                                self.ssims_pred,
-                                self.lpipss_pred,
-                                self.fvds_pred,
-                            ) = (
+                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
                                 self.mses2,
                                 self.psnrs2,
                                 self.ssims2,
@@ -859,13 +774,7 @@ class NCSNRunner:
                                 self.calc_fvd2,
                             )
                         elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
-                            (
-                                self.mses_pred,
-                                self.psnrs_pred,
-                                self.ssims_pred,
-                                self.lpipss_pred,
-                                self.fvds_pred,
-                            ) = (
+                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
                                 self.mses,
                                 self.psnrs,
                                 self.ssims,
@@ -888,10 +797,7 @@ class NCSNRunner:
                                 self.calc_fvd1,
                             )
                         elif (
-                            self.condp > 0.0
-                            and self.futrf > 0
-                            and self.futrp > 0.0
-                            and not self.prob_mask_sync
+                            self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
                         ):  # (1) Interp + (2) Pred + (3) Gen
                             (
                                 self.mses_interp,
@@ -906,13 +812,7 @@ class NCSNRunner:
                                 self.lpipss,
                                 self.fvds,
                             )
-                            (
-                                self.mses_pred,
-                                self.psnrs_pred,
-                                self.ssims_pred,
-                                self.lpipss_pred,
-                                self.fvds_pred,
-                            ) = (
+                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
                                 self.mses2,
                                 self.psnrs2,
                                 self.ssims2,
@@ -950,10 +850,7 @@ class NCSNRunner:
                                 self.calc_fvd2,
                             )
                         elif (
-                            self.condp > 0.0
-                            and self.futrf > 0
-                            and self.futrp > 0.0
-                            and self.prob_mask_sync
+                            self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
                         ):  # (1) Interp + (3) Gen
                             (
                                 self.mses_interp,
@@ -996,40 +893,20 @@ class NCSNRunner:
                         )
                         if self.mode_pred is not None:
                             logging.info(f"PRED: {self.mode_pred}")
-                            logging.info(
-                                f"Best-MSE   pred - {format_p(self.best_mse_pred)}"
-                            )
-                            logging.info(
-                                f"Best-PSNR  pred - {format_p(self.best_psnr_pred)}"
-                            )
-                            logging.info(
-                                f"Best-SSIM  pred - {format_p(self.best_ssim_pred)}"
-                            )
-                            logging.info(
-                                f"Best-LPIPS pred - {format_p(self.best_lpips_pred)}"
-                            )
+                            logging.info(f"Best-MSE   pred - {format_p(self.best_mse_pred)}")
+                            logging.info(f"Best-PSNR  pred - {format_p(self.best_psnr_pred)}")
+                            logging.info(f"Best-SSIM  pred - {format_p(self.best_ssim_pred)}")
+                            logging.info(f"Best-LPIPS pred - {format_p(self.best_lpips_pred)}")
                             if self.calc_fvd_pred:
-                                logging.info(
-                                    f"Best-FVD   pred - {format_p(self.best_fvd_pred)}"
-                                )
+                                logging.info(f"Best-FVD   pred - {format_p(self.best_fvd_pred)}")
                         if self.mode_interp is not None:
                             logging.info(f"INTERPOLATION: {self.mode_interp}")
-                            logging.info(
-                                f"Best-MSE   interp - {format_p(self.best_mse_interp)}"
-                            )
-                            logging.info(
-                                f"Best-PSNR  interp - {format_p(self.best_psnr_interp)}"
-                            )
-                            logging.info(
-                                f"Best-SSIM  interp - {format_p(self.best_ssim_interp)}"
-                            )
-                            logging.info(
-                                f"Best-LPIPS interp - {format_p(self.best_lpips_interp)}"
-                            )
+                            logging.info(f"Best-MSE   interp - {format_p(self.best_mse_interp)}")
+                            logging.info(f"Best-PSNR  interp - {format_p(self.best_psnr_interp)}")
+                            logging.info(f"Best-SSIM  interp - {format_p(self.best_ssim_interp)}")
+                            logging.info(f"Best-LPIPS interp - {format_p(self.best_lpips_interp)}")
                             if self.calc_fvd_interp:
-                                logging.info(
-                                    f"Best-FVD   interp - {format_p(self.best_fvd_interp)}"
-                                )
+                                logging.info(f"Best-FVD   interp - {format_p(self.best_fvd_interp)}")
                         if self.mode_gen is not None and self.calc_fvd3:
                             logging.info(f"GENERATION: {self.mode_gen}")
                             logging.info(f"Best-FVD gen  - {format_p(self.best_fvd3)}")
@@ -1039,9 +916,7 @@ class NCSNRunner:
                             plot_video_graphs_process.join()
                         except:
                             pass
-                        plot_video_graphs_process = Process(
-                            target=self.plot_video_graphs
-                        )
+                        plot_video_graphs_process = Process(target=self.plot_video_graphs)
                         plot_video_graphs_process.start()
 
                     # Samples
@@ -1057,12 +932,8 @@ class NCSNRunner:
                             self.config,
                             test_X,
                             num_frames_pred=self.config.data.num_frames,
-                            prob_mask_cond=getattr(
-                                self.config.data, "prob_mask_cond", 0.0
-                            ),
-                            prob_mask_future=getattr(
-                                self.config.data, "prob_mask_future", 0.0
-                            ),
+                            prob_mask_cond=getattr(self.config.data, "prob_mask_cond", 0.0),
+                            prob_mask_future=getattr(self.config.data, "prob_mask_future", 0.0),
                             conditional=conditional,
                         )
 
@@ -1076,9 +947,7 @@ class NCSNRunner:
                         just_beta=False,
                         final_only=True,
                         denoise=self.config.sampling.denoise,
-                        subsample_steps=getattr(
-                            self.config.sampling, "subsample", None
-                        ),
+                        subsample_steps=getattr(self.config.sampling, "subsample", None),
                         clip_before=getattr(self.config.sampling, "clip_before", True),
                         verbose=False,
                         log=False,
@@ -1100,13 +969,11 @@ class NCSNRunner:
                             condi, futri = (
                                 condi[
                                     :,
-                                    : self.config.data.num_frames_cond
-                                    * self.config.data.channels,
+                                    : self.config.data.num_frames_cond * self.config.data.channels,
                                 ],
                                 condi[
                                     :,
-                                    self.config.data.num_frames_cond
-                                    * self.config.data.channels :,
+                                    self.config.data.num_frames_cond * self.config.data.channels :,
                                 ],
                             )
 
@@ -1115,9 +982,7 @@ class NCSNRunner:
                         for t in range(condi.shape[1] // self.config.data.channels):
                             cond_t = condi[
                                 :,
-                                t
-                                * self.config.data.channels : (t + 1)
-                                * self.config.data.channels,
+                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
                             ]  # BCHW
                             frame = torch.cat(
                                 [
@@ -1160,15 +1025,11 @@ class NCSNRunner:
                         for t in range(pred.shape[1] // self.config.data.channels):
                             real_t = reali[
                                 :,
-                                t
-                                * self.config.data.channels : (t + 1)
-                                * self.config.data.channels,
+                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
                             ]  # BCHW
                             pred_t = pred[
                                 :,
-                                t
-                                * self.config.data.channels : (t + 1)
-                                * self.config.data.channels,
+                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
                             ]  # BCHW
                             frame = torch.cat(
                                 [
@@ -1205,19 +1066,14 @@ class NCSNRunner:
                                 .numpy()
                             )  # HWC
                             gif_frames.append((gif_frame * 255).astype("uint8"))
-                            if (
-                                t == pred.shape[1] // self.config.data.channels - 1
-                                and future == 0
-                            ):
+                            if t == pred.shape[1] // self.config.data.channels - 1 and future == 0:
                                 gif_frames.append((gif_frame * 255).astype("uint8"))
                             del frame, gif_frame
                         if future > 0:
                             for t in range(futri.shape[1] // self.config.data.channels):
                                 futr_t = futri[
                                     :,
-                                    t
-                                    * self.config.data.channels : (t + 1)
-                                    * self.config.data.channels,
+                                    t * self.config.data.channels : (t + 1) * self.config.data.channels,
                                 ]  # BCHW
                                 frame = torch.cat(
                                     [
@@ -1260,18 +1116,14 @@ class NCSNRunner:
 
                         # Save gif
                         imageio.mimwrite(
-                            os.path.join(
-                                self.args.log_sample_path, f"video_grid_{step}.gif"
-                            ),
+                            os.path.join(self.args.log_sample_path, f"video_grid_{step}.gif"),
                             gif_frames,
                             fps=4,
                         )
                         del gif_frames
 
                         # Stretch out multiple frames horizontally
-                        pred = stretch_image(
-                            pred, self.config.data.channels, self.config.data.image_size
-                        )
+                        pred = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
                         reali = stretch_image(
                             reali,
                             self.config.data.channels,
@@ -1296,9 +1148,7 @@ class NCSNRunner:
                             4,
                         )
                         if self.config.data.channels == 1:
-                            data = torch.cat(
-                                [condi, padding, reali, padding, pred], dim=-1
-                            )
+                            data = torch.cat([condi, padding, reali, padding, pred], dim=-1)
                             if future > 0:
                                 data = torch.cat([data, padding, futri], dim=-1)
                         else:
@@ -1331,42 +1181,26 @@ class NCSNRunner:
 
                         nrow = ceil(
                             np.sqrt(
-                                (
-                                    self.config.data.num_frames_cond
-                                    + self.config.data.num_frames * 2
-                                    + future
-                                )
+                                (self.config.data.num_frames_cond + self.config.data.num_frames * 2 + future)
                                 * n_init_samples
                             )
-                            / (
-                                self.config.data.num_frames_cond
-                                + self.config.data.num_frames * 2
-                                + future
-                            )
+                            / (self.config.data.num_frames_cond + self.config.data.num_frames * 2 + future)
                         )
-                        image_grid = make_grid(
-                            data, nrow=nrow, padding=6, pad_value=0.5
-                        )
+                        image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
 
                     else:
                         # Stretch out multiple frames horizontally
-                        pred = stretch_image(
-                            pred, self.config.data.channels, self.config.data.image_size
-                        )
+                        pred = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
                         nrow = ceil(np.sqrt(n_init_samples))
                         image_grid = make_grid(pred, nrow)
 
                     save_image(
                         image_grid,
-                        os.path.join(
-                            self.args.log_sample_path, "image_grid_{}.png".format(step)
-                        ),
+                        os.path.join(self.args.log_sample_path, "image_grid_{}.png".format(step)),
                     )
                     torch.save(
                         pred,
-                        os.path.join(
-                            self.args.log_sample_path, "samples_{}.pt".format(step)
-                        ),
+                        os.path.join(self.args.log_sample_path, "samples_{}.pt".format(step)),
                     )
 
                     del all_samples
@@ -1374,9 +1208,7 @@ class NCSNRunner:
                 del test_scorenet
 
                 self.time_elapsed.update(
-                    self.convert_time_stamp_to_hrs(
-                        str(datetime.timedelta(seconds=(time.time() - self.start_time)))
-                    )
+                    self.convert_time_stamp_to_hrs(str(datetime.timedelta(seconds=(time.time() - self.start_time))))
                     + self.time_elapsed_prev
                 )
 
@@ -1417,38 +1249,16 @@ class NCSNRunner:
             states.append(ema_helper.state_dict())
 
         logging.info(f"Saving checkpoints in {self.args.log_path}")
-        torch.save(
-            states, os.path.join(self.args.log_path, "checkpoint_{}.pt".format(step))
-        )
+        torch.save(states, os.path.join(self.args.log_path, "checkpoint_{}.pt".format(step)))
         torch.save(states, os.path.join(self.args.log_path, "checkpoint.pt"))
 
         # Show best results for every metric
-        logging.info(
-            "Best-MSE - {}".format(
-                ", ".join([f"{k}:{self.best_mse[k]}" for k in self.best_mse])
-            )
-        )
-        logging.info(
-            "Best-PSNR - {}".format(
-                ", ".join([f"{k}:{self.best_psnr[k]}" for k in self.best_psnr])
-            )
-        )
-        logging.info(
-            "Best-SSIM - {}".format(
-                ", ".join([f"{k}:{self.best_ssim[k]}" for k in self.best_ssim])
-            )
-        )
-        logging.info(
-            "Best-LPIPS - {}".format(
-                ", ".join([f"{k}:{self.best_lpips[k]}" for k in self.best_lpips])
-            )
-        )
+        logging.info("Best-MSE - {}".format(", ".join([f"{k}:{self.best_mse[k]}" for k in self.best_mse])))
+        logging.info("Best-PSNR - {}".format(", ".join([f"{k}:{self.best_psnr[k]}" for k in self.best_psnr])))
+        logging.info("Best-SSIM - {}".format(", ".join([f"{k}:{self.best_ssim[k]}" for k in self.best_ssim])))
+        logging.info("Best-LPIPS - {}".format(", ".join([f"{k}:{self.best_lpips[k]}" for k in self.best_lpips])))
         if getattr(self.config.sampling, "fvd", False):
-            logging.info(
-                "Best-FVD - {}".format(
-                    ", ".join([f"{k}:{self.best_fvd[k]}" for k in self.best_fvd])
-                )
-            )
+            logging.info("Best-FVD - {}".format(", ".join([f"{k}:{self.best_fvd[k]}" for k in self.best_fvd])))
 
     def plot_graphs(self):
         # Losses
@@ -1757,11 +1567,7 @@ class NCSNRunner:
                 self.config,
                 video_frames_pred=self.config.data.num_frames,
             )
-            dataset = (
-                dataset_train
-                if getattr(self.config.sampling, "train", False)
-                else dataset_test
-            )
+            dataset = dataset_train if getattr(self.config.sampling, "train", False) else dataset_test
             dataloader = DataLoader(
                 dataset,
                 batch_size=self.config.sampling.batch_size,
@@ -1803,15 +1609,9 @@ class NCSNRunner:
                     self.config.data.image_size,
                 )
                 if self.version == "SMLD":
-                    init_samples = torch.rand(
-                        init_samples_shape, device=self.config.device
-                    )
+                    init_samples = torch.rand(init_samples_shape, device=self.config.device)
                     init_samples = data_transform(self.config, init_samples)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -1824,9 +1624,7 @@ class NCSNRunner:
                         )
                         init_samples = z - used_k * used_theta  # we don't scale here
                     else:
-                        init_samples = torch.randn(
-                            init_samples_shape, device=self.config.device
-                        )
+                        init_samples = torch.randn(init_samples_shape, device=self.config.device)
 
                 all_samples = anneal_Langevin_dynamics_inpainting(
                     init_samples,
@@ -1844,14 +1642,10 @@ class NCSNRunner:
                 )
 
                 # Stretch out multiple frames horizontally
-                refer_images = stretch_image(
-                    refer_images, self.config.data.channels, self.config.data.image_size
-                )
+                refer_images = stretch_image(refer_images, self.config.data.channels, self.config.data.image_size)
 
                 refer_images = (
-                    refer_images[:width, None, ...]
-                    .expand(-1, width, -1, -1, -1)
-                    .reshape(-1, *refer_images.shape[1:])
+                    refer_images[:width, None, ...].expand(-1, width, -1, -1, -1).reshape(-1, *refer_images.shape[1:])
                 )
                 save_image(
                     refer_images,
@@ -1877,20 +1671,14 @@ class NCSNRunner:
                             self.config.data.image_size,
                         )
 
-                        image_grid = make_grid(
-                            sample, ceil(np.sqrt(self.config.sampling.batch_size))
-                        )
+                        image_grid = make_grid(sample, ceil(np.sqrt(self.config.sampling.batch_size)))
                         save_image(
                             image_grid,
-                            os.path.join(
-                                self.args.image_folder, "image_grid_{}.png".format(i)
-                            ),
+                            os.path.join(self.args.image_folder, "image_grid_{}.png".format(i)),
                         )
                         torch.save(
                             sample,
-                            os.path.join(
-                                self.args.image_folder, "completion_{}.pt".format(i)
-                            ),
+                            os.path.join(self.args.image_folder, "completion_{}.pt".format(i)),
                         )
                 else:
                     sample = all_samples[-1].reshape(
@@ -1903,24 +1691,16 @@ class NCSNRunner:
                     sample = inverse_data_transform(self.config, sample)
 
                     # Stretch out multiple frames horizontally
-                    sample = stretch_image(
-                        sample, self.config.data.channels, self.config.data.image_size
-                    )
+                    sample = stretch_image(sample, self.config.data.channels, self.config.data.image_size)
 
-                    image_grid = make_grid(
-                        sample, ceil(np.sqrt(self.config.sampling.batch_size))
-                    )
+                    image_grid = make_grid(sample, ceil(np.sqrt(self.config.sampling.batch_size)))
                     save_image(
                         image_grid,
-                        os.path.join(
-                            self.args.image_folder, "image_grid_{}.png".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "image_grid_{}.png".format(ckpt)),
                     )
                     torch.save(
                         sample,
-                        os.path.join(
-                            self.args.image_folder, "completion_{}.pt".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "completion_{}.pt".format(ckpt)),
                     )
 
             elif self.config.sampling.interpolation:
@@ -1947,11 +1727,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -1971,20 +1747,10 @@ class NCSNRunner:
                 if self.config.sampling.data_init:
                     if self.version == "SMLD":
                         z = torch.randn_like(real)
-                        init_samples = (
-                            samples + float(self.config.model.sigma_begin) * z
-                        )
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                        init_samples = samples + float(self.config.model.sigma_begin) * z
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         alpha = net.alphas[0]
-                        z = (
-                            z / (1 - used_alphas).sqrt()
-                            if getattr(self.config.model, "gamma", False)
-                            else z
-                        )
+                        z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
                         init_samples = alpha.sqrt() * samples + (1 - alpha).sqrt() * z
                 else:
                     init_samples = z
@@ -2022,20 +1788,14 @@ class NCSNRunner:
                             self.config.data.image_size,
                         )
 
-                        image_grid = make_grid(
-                            sample, nrow=self.config.sampling.n_interpolations
-                        )
+                        image_grid = make_grid(sample, nrow=self.config.sampling.n_interpolations)
                         save_image(
                             image_grid,
-                            os.path.join(
-                                self.args.image_folder, "image_grid_{}.png".format(i)
-                            ),
+                            os.path.join(self.args.image_folder, "image_grid_{}.png".format(i)),
                         )
                         torch.save(
                             sample,
-                            os.path.join(
-                                self.args.image_folder, "samples_{}.pt".format(i)
-                            ),
+                            os.path.join(self.args.image_folder, "samples_{}.pt".format(i)),
                         )
                 else:
                     sample = all_samples[-1].reshape(
@@ -2048,24 +1808,16 @@ class NCSNRunner:
                     sample = inverse_data_transform(self.config, sample)
 
                     # Stretch out multiple frames horizontally
-                    sample = stretch_image(
-                        sample, self.config.data.channels, self.config.data.image_size
-                    )
+                    sample = stretch_image(sample, self.config.data.channels, self.config.data.image_size)
 
-                    image_grid = make_grid(
-                        sample, self.config.sampling.n_interpolations
-                    )
+                    image_grid = make_grid(sample, self.config.sampling.n_interpolations)
                     save_image(
                         image_grid,
-                        os.path.join(
-                            self.args.image_folder, "image_grid_{}.png".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "image_grid_{}.png".format(ckpt)),
                     )
                     torch.save(
                         sample,
-                        os.path.join(
-                            self.args.image_folder, "samples_{}.pt".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt)),
                     )
 
             else:
@@ -2092,11 +1844,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -2117,17 +1865,9 @@ class NCSNRunner:
                     if self.version == "SMLD":
                         z = torch.randn_like(real)
                         init_samples = real + float(self.config.model.sigma_begin) * z
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         alpha = net.alphas[0]
-                        z = (
-                            z / (1 - used_alphas).sqrt()
-                            if getattr(self.config.model, "gamma", False)
-                            else z
-                        )
+                        z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
                         init_samples = alpha.sqrt() * real + (1 - alpha).sqrt() * z
                 else:
                     init_samples = z
@@ -2174,10 +1914,7 @@ class NCSNRunner:
                         )
 
                         nrow = ceil(
-                            np.sqrt(
-                                self.config.data.num_frames
-                                * self.config.sampling.batch_size
-                            )
+                            np.sqrt(self.config.data.num_frames * self.config.sampling.batch_size)
                             / self.config.data.num_frames
                         )
                         image_grid = make_grid(sample, nrow, pad_value=0.5)
@@ -2190,9 +1927,7 @@ class NCSNRunner:
                         )
                         torch.save(
                             sample,
-                            os.path.join(
-                                self.args.image_folder, "samples_{:04d}.pt".format(i)
-                            ),
+                            os.path.join(self.args.image_folder, "samples_{:04d}.pt".format(i)),
                         )
 
                 else:
@@ -2206,29 +1941,20 @@ class NCSNRunner:
                     sample = inverse_data_transform(self.config, sample)
 
                     # Stretch out multiple frames horizontally
-                    sample = stretch_image(
-                        sample, self.config.data.channels, self.config.data.image_size
-                    )
+                    sample = stretch_image(sample, self.config.data.channels, self.config.data.image_size)
 
                     nrow = ceil(
-                        np.sqrt(
-                            self.config.data.num_frames
-                            * self.config.sampling.batch_size
-                        )
+                        np.sqrt(self.config.data.num_frames * self.config.sampling.batch_size)
                         / self.config.data.num_frames
                     )
                     image_grid = make_grid(sample, nrow, pad_value=0.5)
                     save_image(
                         image_grid,
-                        os.path.join(
-                            self.args.image_folder, "image_grid_{}.png".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "image_grid_{}.png".format(ckpt)),
                     )
                     torch.save(
                         sample,
-                        os.path.join(
-                            self.args.image_folder, "samples_{}.pt".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt)),
                     )
 
                 if conditional:
@@ -2241,10 +1967,7 @@ class NCSNRunner:
                     if future > 0:
                         cond, futr = torch.tensor_split(
                             cond,
-                            (
-                                self.config.data.num_frames_cond
-                                * self.config.data.channels,
-                            ),
+                            (self.config.data.num_frames_cond * self.config.data.channels,),
                             dim=1,
                         )
                         futr = stretch_image(
@@ -2265,18 +1988,10 @@ class NCSNRunner:
                     )
                     nrow = ceil(
                         np.sqrt(
-                            (
-                                self.config.data.num_frames_cond
-                                + self.config.data.num_frames * 2
-                                + future
-                            )
+                            (self.config.data.num_frames_cond + self.config.data.num_frames * 2 + future)
                             * self.config.sampling.batch_size
                         )
-                        / (
-                            self.config.data.num_frames_cond
-                            + self.config.data.num_frames * 2
-                            + future
-                        )
+                        / (self.config.data.num_frames_cond + self.config.data.num_frames * 2 + future)
                     )
                     image_grid = make_grid(
                         torch.cat(
@@ -2298,9 +2013,7 @@ class NCSNRunner:
                     )
                     torch.save(
                         sample,
-                        os.path.join(
-                            self.args.image_folder, "samples_full_{}.pt".format(ckpt)
-                        ),
+                        os.path.join(self.args.image_folder, "samples_full_{}.pt".format(ckpt)),
                     )
 
         else:
@@ -2357,11 +2070,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -2401,17 +2110,9 @@ class NCSNRunner:
                     if self.version == "SMLD":
                         z = torch.randn_like(real)
                         init_samples = real + float(self.config.model.sigma_begin) * z
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         alpha = net.alphas[0]
-                        z = (
-                            z / (1 - used_alphas).sqrt()
-                            if getattr(self.config.model, "gamma", False)
-                            else z
-                        )
+                        z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
                         init_samples = alpha.sqrt() * real + (1 - alpha).sqrt() * z
                 else:
                     init_samples = z
@@ -2458,47 +2159,27 @@ class NCSNRunner:
                     self.config.data.image_size,
                 )
                 final_samples = inverse_data_transform(self.config, final_samples)
-                gen_samples = (
-                    final_samples
-                    if i == 0
-                    else torch.cat([gen_samples, final_samples], dim=0)
-                )
+                gen_samples = final_samples if i == 0 else torch.cat([gen_samples, final_samples], dim=0)
 
             # FID
             feats_path = get_feats_path(
-                getattr(
-                    self.config.fast_fid, "dataset", self.config.data.dataset
-                ).upper(),
+                getattr(self.config.fast_fid, "dataset", self.config.data.dataset).upper(),
                 self.args.feats_dir,
             )
             k = self.config.fast_fid.pr_nn_k
-            fid, precision, recall = get_fid_PR(
-                feats_path, gen_samples, self.config.device, k=k
-            )
+            fid, precision, recall = get_fid_PR(feats_path, gen_samples, self.config.device, k=k)
             fids[ckpt], precisions[ckpt], recalls[ckpt] = fid, precision, recall
-            print(
-                "ckpt: {}, fid: {}, precision: {}, recall: {}".format(
-                    ckpt, fid, precision, recall
-                )
-            )
+            print("ckpt: {}, fid: {}, precision: {}, recall: {}".format(ckpt, fid, precision, recall))
 
-            self.write_to_pickle(
-                os.path.join(self.args.image_folder, "fids.pickle"), fids
-            )
+            self.write_to_pickle(os.path.join(self.args.image_folder, "fids.pickle"), fids)
             self.write_to_yaml(os.path.join(self.args.image_folder, "fids.yml"), fids)
             self.write_to_pickle(
                 os.path.join(self.args.image_folder, f"precisions_k{k}.pickle"),
                 precisions,
             )
-            self.write_to_yaml(
-                os.path.join(self.args.image_folder, f"precisions_k{k}.yml"), precisions
-            )
-            self.write_to_pickle(
-                os.path.join(self.args.image_folder, f"recalls_k{k}.pickle"), recalls
-            )
-            self.write_to_yaml(
-                os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls
-            )
+            self.write_to_yaml(os.path.join(self.args.image_folder, f"precisions_k{k}.yml"), precisions)
+            self.write_to_pickle(os.path.join(self.args.image_folder, f"recalls_k{k}.pickle"), recalls)
+            self.write_to_yaml(os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls)
 
             # Save samples
             # Stretch out multiple frames horizontally
@@ -2508,8 +2189,7 @@ class NCSNRunner:
                 self.config.data.image_size,
             )
             nrow = ceil(
-                np.sqrt(self.config.data.num_frames * self.config.sampling.batch_size)
-                / self.config.data.num_frames
+                np.sqrt(self.config.data.num_frames * self.config.sampling.batch_size) / self.config.data.num_frames
             )
             image_grid = make_grid(gen_samples_to_save, nrow, pad_value=0.5)
             save_image(
@@ -2534,37 +2214,23 @@ class NCSNRunner:
             if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
                 calc_fvd1 = self.condf + self.config.sampling.num_frames_pred >= 10
                 calc_fvd2 = calc_fvd3 = False
-            elif (
-                self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-            ):  # (1) Interpolation
+            elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
                 calc_fvd1 = self.condf + self.config.data.num_frames + self.futrf >= 10
                 calc_fvd2 = calc_fvd3 = False
-            elif (
-                self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-            ):  # (1) Interp + (2) Pred
+            elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
                 calc_fvd1 = self.condf + self.config.data.num_frames + self.futrf >= 10
                 calc_fvd2 = self.condf + self.config.sampling.num_frames_pred >= 10
                 calc_fvd3 = False
             elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
-                calc_fvd1 = calc_fvd3 = (
-                    self.condf + self.config.sampling.num_frames_pred >= 10
-                )
+                calc_fvd1 = calc_fvd3 = self.condf + self.config.sampling.num_frames_pred >= 10
                 calc_fvd2 = False
             elif (
-                self.condp > 0.0
-                and self.futrf > 0
-                and self.futrp > 0.0
-                and not self.prob_mask_sync
+                self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
             ):  # (1) Interp + (2) Pred + (3) Gen
                 calc_fvd1 = self.condf + self.config.data.num_frames + self.futrf >= 10
-                calc_fvd2 = calc_fvd3 = (
-                    self.condf + self.config.sampling.num_frames_pred >= 10
-                )
+                calc_fvd2 = calc_fvd3 = self.condf + self.config.sampling.num_frames_pred >= 10
             elif (
-                self.condp > 0.0
-                and self.futrf > 0
-                and self.futrp > 0.0
-                and self.prob_mask_sync
+                self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
             ):  # (1) Interp + (3) Gen
                 calc_fvd1 = self.condf + self.config.data.num_frames + self.futrf >= 10
                 calc_fvd2 = False
@@ -2614,9 +2280,7 @@ class NCSNRunner:
 
             if self.config.sampling.ckpt_id is None:
                 ckpt = "latest"
-                logging.info(
-                    f"Loading ckpt {os.path.join(self.args.log_path, 'checkpoint.pt')}"
-                )
+                logging.info(f"Loading ckpt {os.path.join(self.args.log_path, 'checkpoint.pt')}")
                 states = torch.load(
                     os.path.join(self.args.log_path, "checkpoint.pt"),
                     map_location=self.config.device,
@@ -2650,31 +2314,16 @@ class NCSNRunner:
         # Data
         if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
             num_frames_pred = self.config.sampling.num_frames_pred
-        elif (
-            self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-        ):  # (1) Interpolation
+        elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
             num_frames_pred = self.config.data.num_frames
-        elif (
-            self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-        ):  # (1) Interp + (2) Pred
-            num_frames_pred = max(
-                self.config.data.num_frames, self.config.sampling.num_frames_pred
-            )
+        elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
+            num_frames_pred = max(self.config.data.num_frames, self.config.sampling.num_frames_pred)
         elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
             num_frames_pred = self.config.sampling.num_frames_pred
-        elif (
-            self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0
-        ):  # (1) Interp + (2) Pred + (3) Gen
+        elif self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred + (3) Gen
             num_frames_pred = self.config.sampling.num_frames_pred
-        elif (
-            self.condp > 0.0
-            and self.futrf > 0
-            and self.futrp > 0.0
-            and self.prob_mask_sync
-        ):  # (1) Interp + (3) Gen
-            num_frames_pred = max(
-                self.config.data.num_frames, self.config.sampling.num_frames_pred
-            )
+        elif self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync:  # (1) Interp + (3) Gen
+            num_frames_pred = max(self.config.data.num_frames, self.config.sampling.num_frames_pred)
 
         dataset_train, dataset_test = get_dataset(
             self.args.data_path,
@@ -2682,11 +2331,7 @@ class NCSNRunner:
             video_frames_pred=num_frames_pred,
             start_at=self.args.start_at,
         )
-        dataset = (
-            dataset_train
-            if getattr(self.config.sampling, "train", False)
-            else dataset_test
-        )
+        dataset = dataset_train if getattr(self.config.sampling, "train", False) else dataset_test
         dataloader = DataLoader(
             dataset,
             batch_size=self.config.sampling.batch_size // preds_per_test,
@@ -2778,11 +2423,7 @@ class NCSNRunner:
             if self.version == "SMLD":
                 z = torch.rand(init_samples_shape, device=self.config.device)
                 z = data_transform(self.config, z)
-            elif (
-                self.version == "DDPM"
-                or self.version == "DDIM"
-                or self.version == "FPNDM"
-            ):
+            elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                 if getattr(self.config.model, "gamma", False):
                     used_k, used_theta = net.k_cum[0], net.theta_t[0]
                     z = (
@@ -2811,27 +2452,15 @@ class NCSNRunner:
                     data_iter2 = iter(dataloader2)
                     real_init, _ = next(data_iter2)
                 real_init = data_transform(self.config, real_init)
-                real_init, _, _ = conditioning_fn(
-                    self.config, real_init, conditional=conditional
-                )
+                real_init, _, _ = conditioning_fn(self.config, real_init, conditional=conditional)
                 real_init = real_init.to(self.config.device)
-                real_init1 = real_init[
-                    :, : self.config.data.channels * self.config.data.num_frames
-                ]
+                real_init1 = real_init[:, : self.config.data.channels * self.config.data.num_frames]
                 if self.version == "SMLD":
                     z = torch.randn_like(real_init1)
                     init_samples = real_init1 + float(self.config.model.sigma_begin) * z
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     alpha = net.alphas[0]
-                    z = (
-                        z / (1 - used_alphas).sqrt()
-                        if getattr(self.config.model, "gamma", False)
-                        else z
-                    )
+                    z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
                     init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
             else:
                 init_samples = z
@@ -2850,8 +2479,7 @@ class NCSNRunner:
                 # Generate samples
                 gen_samples = sampler(
                     init_samples
-                    if i_frame == 0
-                    or getattr(self.config.sampling, "init_prev_t", -1) <= 0
+                    if i_frame == 0 or getattr(self.config.sampling, "init_prev_t", -1) <= 0
                     else gen_samples,
                     mynet,
                     cond=cond,
@@ -2897,16 +2525,14 @@ class NCSNRunner:
                         [
                             cond[
                                 :,
-                                self.config.data.channels
-                                * self.config.data.num_frames :,
+                                self.config.data.channels * self.config.data.num_frames :,
                             ],
                             gen_samples[
                                 :,
                                 self.config.data.channels
                                 * max(
                                     0,
-                                    self.config.data.num_frames
-                                    - self.config.data.num_frames_cond,
+                                    self.config.data.num_frames - self.config.data.num_frames_cond,
                                 ) :,
                             ],
                         ],
@@ -2917,11 +2543,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -2954,29 +2576,15 @@ class NCSNRunner:
                         ]
                     if self.version == "SMLD":
                         z = torch.randn_like(real_init1)
-                        init_samples = (
-                            real_init1 + float(self.config.model.sigma_begin) * z
-                        )
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                        init_samples = real_init1 + float(self.config.model.sigma_begin) * z
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         alpha = net.alphas[0]
-                        z = (
-                            z / (1 - used_alphas).sqrt()
-                            if getattr(self.config.model, "gamma", False)
-                            else z
-                        )
-                        init_samples = (
-                            alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
-                        )
+                        z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
+                        init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
                 else:
                     init_samples = z
 
-            pred = torch.cat(pred_samples, dim=1)[
-                :, : self.config.data.channels * num_frames_pred
-            ]
+            pred = torch.cat(pred_samples, dim=1)[:, : self.config.data.channels * num_frames_pred]
             pred = inverse_data_transform(self.config, pred)
             # pred has length of multiple of n (because we repeat data sample n times)
 
@@ -2998,8 +2606,7 @@ class NCSNRunner:
                         pred_ij = pred[
                             ii,
                             (self.config.data.channels * jj) : (
-                                self.config.data.channels * jj
-                                + self.config.data.channels
+                                self.config.data.channels * jj + self.config.data.channels
                             ),
                             :,
                             :,
@@ -3007,8 +2614,7 @@ class NCSNRunner:
                         real_ij = real[
                             ii,
                             (self.config.data.channels * jj) : (
-                                self.config.data.channels * jj
-                                + self.config.data.channels
+                                self.config.data.channels * jj + self.config.data.channels
                             ),
                             :,
                             :,
@@ -3027,14 +2633,10 @@ class NCSNRunner:
                         ):
                             # ssim is the only metric extremely sensitive to gray being compared to b/w
                             pred_ij_np_grey = np.asarray(
-                                Transforms.ToPILImage()(torch.round(pred_ij))
-                                .convert("RGB")
-                                .convert("L")
+                                Transforms.ToPILImage()(torch.round(pred_ij)).convert("RGB").convert("L")
                             )
                             real_ij_np_grey = np.asarray(
-                                Transforms.ToPILImage()(torch.round(real_ij))
-                                .convert("RGB")
-                                .convert("L")
+                                Transforms.ToPILImage()(torch.round(real_ij)).convert("RGB").convert("L")
                             )
                         avg_ssim += ssim(
                             pred_ij_np_grey,
@@ -3045,15 +2647,9 @@ class NCSNRunner:
                         )
 
                         # Calculate LPIPS
-                        pred_ij_LPIPS = (
-                            T2(pred_ij_pil).unsqueeze(0).to(self.config.device)
-                        )
-                        real_ij_LPIPS = (
-                            T2(real_ij_pil).unsqueeze(0).to(self.config.device)
-                        )
-                        avg_distance += model_lpips.forward(
-                            real_ij_LPIPS, pred_ij_LPIPS
-                        )
+                        pred_ij_LPIPS = T2(pred_ij_pil).unsqueeze(0).to(self.config.device)
+                        real_ij_LPIPS = T2(real_ij_pil).unsqueeze(0).to(self.config.device)
+                        avg_distance += model_lpips.forward(real_ij_LPIPS, pred_ij_LPIPS)
 
                     vid_mse.append(mse / num_frames_pred)
                     vid_ssim.append(avg_ssim / num_frames_pred)
@@ -3096,11 +2692,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -3129,32 +2721,16 @@ class NCSNRunner:
                         data_iter2 = iter(dataloader2)
                         real_init, _ = next(data_iter2)
                     real_init = data_transform(self.config, real_init)
-                    real_init, _, _ = conditioning_fn(
-                        self.config, real_init, conditional=conditional
-                    )
+                    real_init, _, _ = conditioning_fn(self.config, real_init, conditional=conditional)
                     real_init = real_init.to(self.config.device)
-                    real_init1 = real_init[
-                        :, : self.config.data.channels * self.config.data.num_frames
-                    ]
+                    real_init1 = real_init[:, : self.config.data.channels * self.config.data.num_frames]
                     if self.version == "SMLD":
                         z = torch.randn_like(real_init1)
-                        init_samples = (
-                            real_init1 + float(self.config.model.sigma_begin) * z
-                        )
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                        init_samples = real_init1 + float(self.config.model.sigma_begin) * z
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         alpha = net.alphas[0]
-                        z = (
-                            z / (1 - used_alphas).sqrt()
-                            if getattr(self.config.model, "gamma", False)
-                            else z
-                        )
-                        init_samples = (
-                            alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
-                        )
+                        z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
+                        init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
                 else:
                     init_samples = z
 
@@ -3165,17 +2741,14 @@ class NCSNRunner:
 
                 pred_samples = []
 
-                for i_frame in tqdm(
-                    range(n_iter_frames), desc="Generating video frames"
-                ):
+                for i_frame in tqdm(range(n_iter_frames), desc="Generating video frames"):
 
                     mynet = scorenet
 
                     # Generate samples
                     gen_samples = sampler(
                         init_samples
-                        if i_frame == 0
-                        or getattr(self.config.sampling, "init_prev_t", -1) <= 0
+                        if i_frame == 0 or getattr(self.config.sampling, "init_prev_t", -1) <= 0
                         else gen_samples,
                         mynet,
                         cond=cond,
@@ -3185,9 +2758,7 @@ class NCSNRunner:
                         verbose=True if not train else False,
                         final_only=True,
                         denoise=self.config.sampling.denoise,
-                        subsample_steps=getattr(
-                            self.config.sampling, "subsample", None
-                        ),
+                        subsample_steps=getattr(self.config.sampling, "subsample", None),
                         clip_before=getattr(self.config.sampling, "clip_before", True),
                         t_min=getattr(self.config.sampling, "init_prev_t", -1),
                         log=True if not train else False,
@@ -3233,8 +2804,7 @@ class NCSNRunner:
                                     self.config.data.channels
                                     * max(
                                         0,
-                                        self.config.data.num_frames
-                                        - self.config.data.num_frames_cond,
+                                        self.config.data.num_frames - self.config.data.num_frames_cond,
                                     ) :,
                                 ],
                                 cond[
@@ -3248,11 +2818,7 @@ class NCSNRunner:
                     if self.version == "SMLD":
                         z = torch.rand(init_samples_shape, device=self.config.device)
                         z = data_transform(self.config, z)
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         if getattr(self.config.model, "gamma", False):
                             used_k, used_theta = net.k_cum[0], net.theta_t[0]
                             z = (
@@ -3265,9 +2831,7 @@ class NCSNRunner:
                             )
                             z = z - used_k * used_theta
                         else:
-                            z = torch.randn(
-                                init_samples_shape, device=self.config.device
-                            )
+                            z = torch.randn(init_samples_shape, device=self.config.device)
 
                     # init_samples
                     if self.config.sampling.data_init:
@@ -3287,29 +2851,15 @@ class NCSNRunner:
                             ]
                         if self.version == "SMLD":
                             z = torch.randn_like(real_init1)
-                            init_samples = (
-                                real_init1 + float(self.config.model.sigma_begin) * z
-                            )
-                        elif (
-                            self.version == "DDPM"
-                            or self.version == "DDIM"
-                            or self.version == "FPNDM"
-                        ):
+                            init_samples = real_init1 + float(self.config.model.sigma_begin) * z
+                        elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                             alpha = net.alphas[0]
-                            z = (
-                                z / (1 - used_alphas).sqrt()
-                                if getattr(self.config.model, "gamma", False)
-                                else z
-                            )
-                            init_samples = (
-                                alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
-                            )
+                            z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
+                            init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
                     else:
                         init_samples = z
 
-                pred2 = torch.cat(pred_samples, dim=1)[
-                    :, : self.config.data.channels * num_frames_pred
-                ]
+                pred2 = torch.cat(pred_samples, dim=1)[:, : self.config.data.channels * num_frames_pred]
                 pred2 = inverse_data_transform(self.config, pred2)
                 # pred has length of multiple of n (because we repeat data sample n times)
 
@@ -3331,8 +2881,7 @@ class NCSNRunner:
                             pred_ij = pred2[
                                 ii,
                                 (self.config.data.channels * jj) : (
-                                    self.config.data.channels * jj
-                                    + self.config.data.channels
+                                    self.config.data.channels * jj + self.config.data.channels
                                 ),
                                 :,
                                 :,
@@ -3340,39 +2889,29 @@ class NCSNRunner:
                             real_ij = real2[
                                 ii,
                                 (self.config.data.channels * jj) : (
-                                    self.config.data.channels * jj
-                                    + self.config.data.channels
+                                    self.config.data.channels * jj + self.config.data.channels
                                 ),
                                 :,
                                 :,
                             ]
                             mse += F.mse_loss(real_ij, pred_ij)
 
-                            pred_ij_pil = Transforms.ToPILImage()(pred_ij).convert(
-                                "RGB"
-                            )
-                            real_ij_pil = Transforms.ToPILImage()(real_ij).convert(
-                                "RGB"
-                            )
+                            pred_ij_pil = Transforms.ToPILImage()(pred_ij).convert("RGB")
+                            real_ij_pil = Transforms.ToPILImage()(real_ij).convert("RGB")
 
                             # SSIM
                             pred_ij_np_grey = np.asarray(pred_ij_pil.convert("L"))
                             real_ij_np_grey = np.asarray(real_ij_pil.convert("L"))
                             if (
-                                self.config.data.dataset.upper()
-                                == "STOCHASTICMOVINGMNIST"
+                                self.config.data.dataset.upper() == "STOCHASTICMOVINGMNIST"
                                 or self.config.data.dataset.upper() == "MOVINGMNIST"
                             ):
                                 # ssim is the only metric extremely sensitive to gray being compared to b/w
                                 pred_ij_np_grey = np.asarray(
-                                    Transforms.ToPILImage()(torch.round(pred_ij))
-                                    .convert("RGB")
-                                    .convert("L")
+                                    Transforms.ToPILImage()(torch.round(pred_ij)).convert("RGB").convert("L")
                                 )
                                 real_ij_np_grey = np.asarray(
-                                    Transforms.ToPILImage()(torch.round(real_ij))
-                                    .convert("RGB")
-                                    .convert("L")
+                                    Transforms.ToPILImage()(torch.round(real_ij)).convert("RGB").convert("L")
                                 )
                             avg_ssim += ssim(
                                 pred_ij_np_grey,
@@ -3383,15 +2922,9 @@ class NCSNRunner:
                             )
 
                             # Calculate LPIPS
-                            pred_ij_LPIPS = (
-                                T2(pred_ij_pil).unsqueeze(0).to(self.config.device)
-                            )
-                            real_ij_LPIPS = (
-                                T2(real_ij_pil).unsqueeze(0).to(self.config.device)
-                            )
-                            avg_distance += model_lpips.forward(
-                                real_ij_LPIPS, pred_ij_LPIPS
-                            )
+                            pred_ij_LPIPS = T2(pred_ij_pil).unsqueeze(0).to(self.config.device)
+                            real_ij_LPIPS = T2(real_ij_pil).unsqueeze(0).to(self.config.device)
+                            avg_distance += model_lpips.forward(real_ij_LPIPS, pred_ij_LPIPS)
 
                         vid_mse2.append(mse / num_frames_pred)
                         vid_ssim2.append(avg_ssim / num_frames_pred)
@@ -3410,10 +2943,7 @@ class NCSNRunner:
 
                     # If future = 0, we must make more since first ones are empty frames!
                     # Else, run only 1 iteration, and make only num_frames
-                    num_frames_pred = (
-                        self.config.data.num_frames_cond
-                        + self.config.sampling.num_frames_pred
-                    )
+                    num_frames_pred = self.config.data.num_frames_cond + self.config.sampling.num_frames_pred
 
                     logging.info(
                         f"GENERATING (Uncond) {num_frames_pred} frames, using a {self.config.data.num_frames} frame model (conditioned on {self.config.data.num_frames_cond} cond + {self.config.data.num_frames_future} futr frames), subsample={getattr(self.config.sampling, 'subsample', None)}, preds_per_test={preds_per_test}"
@@ -3440,11 +2970,7 @@ class NCSNRunner:
                     if self.version == "SMLD":
                         z = torch.rand(init_samples_shape, device=self.config.device)
                         z = data_transform(self.config, z)
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         if getattr(self.config.model, "gamma", False):
                             used_k, used_theta = net.k_cum[0], net.theta_t[0]
                             z = (
@@ -3457,9 +2983,7 @@ class NCSNRunner:
                             )
                             z = z - used_k * used_theta
                         else:
-                            z = torch.randn(
-                                init_samples_shape, device=self.config.device
-                            )
+                            z = torch.randn(init_samples_shape, device=self.config.device)
                             # z = data_transform(self.config, z)
 
                     # init_samples
@@ -3476,52 +3000,31 @@ class NCSNRunner:
                             data_iter2 = iter(dataloader2)
                             real_init, _ = next(data_iter2)
                         real_init = data_transform(self.config, real_init)
-                        real_init, _, _ = conditioning_fn(
-                            self.config, real_init, conditional=conditional
-                        )
+                        real_init, _, _ = conditioning_fn(self.config, real_init, conditional=conditional)
                         real_init = real_init.to(self.config.device)
-                        real_init1 = real_init[
-                            :, : self.config.data.channels * self.config.data.num_frames
-                        ]
+                        real_init1 = real_init[:, : self.config.data.channels * self.config.data.num_frames]
                         if self.version == "SMLD":
                             z = torch.randn_like(real_init1)
-                            init_samples = (
-                                real_init1 + float(self.config.model.sigma_begin) * z
-                            )
-                        elif (
-                            self.version == "DDPM"
-                            or self.version == "DDIM"
-                            or self.version == "FPNDM"
-                        ):
+                            init_samples = real_init1 + float(self.config.model.sigma_begin) * z
+                        elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                             alpha = net.alphas[0]
-                            z = (
-                                z / (1 - used_alphas).sqrt()
-                                if getattr(self.config.model, "gamma", False)
-                                else z
-                            )
-                            init_samples = (
-                                alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
-                            )
+                            z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
+                            init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
                     else:
                         init_samples = z
 
                     if getattr(self.config.sampling, "one_frame_at_a_time", False):
                         n_iter_frames = num_frames_pred
                     else:
-                        n_iter_frames = ceil(
-                            num_frames_pred / self.config.data.num_frames
-                        )
+                        n_iter_frames = ceil(num_frames_pred / self.config.data.num_frames)
 
                     pred_samples = []
-                    for i_frame in tqdm(
-                        range(n_iter_frames), desc="Generating video frames"
-                    ):
+                    for i_frame in tqdm(range(n_iter_frames), desc="Generating video frames"):
 
                         # Generate samples
                         gen_samples = sampler(
                             init_samples
-                            if i_frame == 0
-                            or getattr(self.config.sampling, "init_prev_t", -1) <= 0
+                            if i_frame == 0 or getattr(self.config.sampling, "init_prev_t", -1) <= 0
                             else gen_samples,
                             scorenet,
                             cond=cond_fvd,
@@ -3531,12 +3034,8 @@ class NCSNRunner:
                             verbose=True if not train else False,
                             final_only=True,
                             denoise=self.config.sampling.denoise,
-                            subsample_steps=getattr(
-                                self.config.sampling, "subsample", None
-                            ),
-                            clip_before=getattr(
-                                self.config.sampling, "clip_before", True
-                            ),
+                            subsample_steps=getattr(self.config.sampling, "subsample", None),
+                            clip_before=getattr(self.config.sampling, "clip_before", True),
                             t_min=getattr(self.config.sampling, "init_prev_t", -1),
                             log=True if not train else False,
                             gamma=getattr(self.config.model, "gamma", False),
@@ -3554,9 +3053,7 @@ class NCSNRunner:
 
                         # cond -> [cond[n:], real[:n]]
                         if future == 0:
-                            if getattr(
-                                self.config.sampling, "one_frame_at_a_time", False
-                            ):
+                            if getattr(self.config.sampling, "one_frame_at_a_time", False):
                                 cond_fvd = torch.cat(
                                     [
                                         cond_fvd[:, self.config.data.channels :],
@@ -3569,25 +3066,21 @@ class NCSNRunner:
                                     [
                                         cond_fvd[
                                             :,
-                                            self.config.data.channels
-                                            * self.config.data.num_frames :,
+                                            self.config.data.channels * self.config.data.num_frames :,
                                         ],
                                         gen_samples[
                                             :,
                                             self.config.data.channels
                                             * max(
                                                 0,
-                                                self.config.data.num_frames
-                                                - self.config.data.num_frames_cond,
+                                                self.config.data.num_frames - self.config.data.num_frames_cond,
                                             ) :,
                                         ],
                                     ],
                                     dim=1,
                                 )
                         else:
-                            if getattr(
-                                self.config.sampling, "one_frame_at_a_time", False
-                            ):
+                            if getattr(self.config.sampling, "one_frame_at_a_time", False):
                                 cond_fvd = torch.cat(
                                     [
                                         cond_fvd[:, self.config.data.channels :],
@@ -3612,8 +3105,7 @@ class NCSNRunner:
                                             self.config.data.channels
                                             * max(
                                                 0,
-                                                self.config.data.num_frames
-                                                - self.config.data.num_frames_cond,
+                                                self.config.data.num_frames - self.config.data.num_frames_cond,
                                             ) :,
                                         ],
                                         cond_fvd[
@@ -3628,15 +3120,9 @@ class NCSNRunner:
                             cond_mask_fvd = cond_mask_fvd.fill_(1)
                         # resample new random init
                         if self.version == "SMLD":
-                            z = torch.rand(
-                                init_samples_shape, device=self.config.device
-                            )
+                            z = torch.rand(init_samples_shape, device=self.config.device)
                             z = data_transform(self.config, z)
-                        elif (
-                            self.version == "DDPM"
-                            or self.version == "DDIM"
-                            or self.version == "FPNDM"
-                        ):
+                        elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                             if getattr(self.config.model, "gamma", False):
                                 used_k, used_theta = net.k_cum[0], net.theta_t[0]
                                 z = (
@@ -3649,15 +3135,11 @@ class NCSNRunner:
                                 )
                                 z = z - used_k * used_theta
                             else:
-                                z = torch.randn(
-                                    init_samples_shape, device=self.config.device
-                                )
+                                z = torch.randn(init_samples_shape, device=self.config.device)
 
                         # init_samples
                         if self.config.sampling.data_init:
-                            if getattr(
-                                self.config.sampling, "one_frame_at_a_time", False
-                            ):
+                            if getattr(self.config.sampling, "one_frame_at_a_time", False):
                                 real_init1 = real_init[
                                     self.config.data.channels
                                     * (i_frame + 1) : self.config.data.channels
@@ -3673,30 +3155,15 @@ class NCSNRunner:
                                 ]
                             if self.version == "SMLD":
                                 z = torch.randn_like(real_init1)
-                                init_samples = (
-                                    real_init1
-                                    + float(self.config.model.sigma_begin) * z
-                                )
-                            elif (
-                                self.version == "DDPM"
-                                or self.version == "DDIM"
-                                or self.version == "FPNDM"
-                            ):
+                                init_samples = real_init1 + float(self.config.model.sigma_begin) * z
+                            elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                                 alpha = net.alphas[0]
-                                z = (
-                                    z / (1 - used_alphas).sqrt()
-                                    if getattr(self.config.model, "gamma", False)
-                                    else z
-                                )
-                                init_samples = (
-                                    alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
-                                )
+                                z = z / (1 - used_alphas).sqrt() if getattr(self.config.model, "gamma", False) else z
+                                init_samples = alpha.sqrt() * real_init1 + (1 - alpha).sqrt() * z
                         else:
                             init_samples = z
 
-                    pred_uncond = torch.cat(pred_samples, dim=1)[
-                        :, : self.config.data.channels * num_frames_pred
-                    ]
+                    pred_uncond = torch.cat(pred_samples, dim=1)[:, : self.config.data.channels * num_frames_pred]
                     pred_uncond = inverse_data_transform(self.config, pred_uncond)
 
                 def to_i3d(x):
@@ -3712,9 +3179,7 @@ class NCSNRunner:
                     x = x.permute(0, 2, 1, 3, 4)  # BTCHW -> BCTHW
                     return x
 
-                if (calc_fvd1 or (calc_fvd3 and not second_calc)) and real.shape[
-                    1
-                ] >= pred.shape[1]:
+                if (calc_fvd1 or (calc_fvd3 and not second_calc)) and real.shape[1] >= pred.shape[1]:
 
                     # real
                     if future == 0:
@@ -3722,8 +3187,7 @@ class NCSNRunner:
                             [
                                 cond_original[
                                     :,
-                                    : self.config.data.num_frames_cond
-                                    * self.config.data.channels,
+                                    : self.config.data.num_frames_cond * self.config.data.channels,
                                 ],
                                 real,
                             ],
@@ -3736,8 +3200,7 @@ class NCSNRunner:
                             [
                                 cond_original[
                                     :,
-                                    : self.config.data.num_frames_cond
-                                    * self.config.data.channels,
+                                    : self.config.data.num_frames_cond * self.config.data.channels,
                                 ],
                                 real,
                                 cond_original[:, -future * self.config.data.channels :],
@@ -3747,9 +3210,7 @@ class NCSNRunner:
                             ::preds_per_test
                         ]  # Ignore the repeated ones
                     real_fvd = to_i3d(real_fvd)
-                    real_embeddings.append(
-                        get_fvd_feats(real_fvd, i3d=i3d, device=self.config.device)
-                    )
+                    real_embeddings.append(get_fvd_feats(real_fvd, i3d=i3d, device=self.config.device))
 
                     # fake
                     if future == 0:
@@ -3757,8 +3218,7 @@ class NCSNRunner:
                             [
                                 cond_original[
                                     :,
-                                    : self.config.data.num_frames_cond
-                                    * self.config.data.channels,
+                                    : self.config.data.num_frames_cond * self.config.data.channels,
                                 ],
                                 pred,
                             ],
@@ -3769,8 +3229,7 @@ class NCSNRunner:
                             [
                                 cond_original[
                                     :,
-                                    : self.config.data.num_frames_cond
-                                    * self.config.data.channels,
+                                    : self.config.data.num_frames_cond * self.config.data.channels,
                                 ],
                                 pred,
                                 cond_original[:, -future * self.config.data.channels :],
@@ -3778,14 +3237,10 @@ class NCSNRunner:
                             dim=1,
                         )
                     fake_fvd = to_i3d(fake_fvd)
-                    fake_embeddings.append(
-                        get_fvd_feats(fake_fvd, i3d=i3d, device=self.config.device)
-                    )
+                    fake_embeddings.append(get_fvd_feats(fake_fvd, i3d=i3d, device=self.config.device))
 
                 # fake2 : fvd_cond if fvd was fvd_interp
-                if (second_calc and (calc_fvd2 or calc_fvd3)) and real.shape[
-                    1
-                ] >= pred.shape[
+                if (second_calc and (calc_fvd2 or calc_fvd3)) and real.shape[1] >= pred.shape[
                     1
                 ]:  # only cond, but real has all frames req for interp
 
@@ -3794,8 +3249,7 @@ class NCSNRunner:
                         [
                             cond_original2[
                                 :,
-                                : self.config.data.num_frames_cond
-                                * self.config.data.channels,
+                                : self.config.data.num_frames_cond * self.config.data.channels,
                             ],
                             real2,
                         ],
@@ -3804,44 +3258,31 @@ class NCSNRunner:
                         ::preds_per_test
                     ]  # Ignore the repeated ones
                     real_fvd2 = to_i3d(real_fvd2)
-                    real_embeddings2.append(
-                        get_fvd_feats(real_fvd2, i3d=i3d, device=self.config.device)
-                    )
+                    real_embeddings2.append(get_fvd_feats(real_fvd2, i3d=i3d, device=self.config.device))
 
                     # fake2
                     fake_fvd2 = torch.cat(
                         [
                             cond_original2[
                                 :,
-                                : self.config.data.num_frames_cond
-                                * self.config.data.channels,
+                                : self.config.data.num_frames_cond * self.config.data.channels,
                             ],
                             pred2,
                         ],
                         dim=1,
                     )
                     fake_fvd2 = to_i3d(fake_fvd2)
-                    fake_embeddings2.append(
-                        get_fvd_feats(fake_fvd2, i3d=i3d, device=self.config.device)
-                    )
+                    fake_embeddings2.append(get_fvd_feats(fake_fvd2, i3d=i3d, device=self.config.device))
 
                 # (3) fake 3: uncond
                 if calc_fvd3:
                     # real uncond
-                    real_embeddings_uncond.append(
-                        real_embeddings2[-1] if second_calc else real_embeddings[-1]
-                    )
+                    real_embeddings_uncond.append(real_embeddings2[-1] if second_calc else real_embeddings[-1])
 
                     # fake uncond
-                    fake_fvd_uncond = torch.cat(
-                        [pred_uncond], dim=1
-                    )  # We don't want to input the zero-mask
+                    fake_fvd_uncond = torch.cat([pred_uncond], dim=1)  # We don't want to input the zero-mask
                     fake_fvd_uncond = to_i3d(fake_fvd_uncond)
-                    fake_embeddings_uncond.append(
-                        get_fvd_feats(
-                            fake_fvd_uncond, i3d=i3d, device=self.config.device
-                        )
-                    )
+                    fake_embeddings_uncond.append(get_fvd_feats(fake_fvd_uncond, i3d=i3d, device=self.config.device))
 
             if i == 0 or preds_per_test == 1:  # Save first mini-batch or save them all
                 cond = cond_original
@@ -3878,23 +3319,14 @@ class NCSNRunner:
                 for t in range(cond.shape[1] // self.config.data.channels):
                     cond_t = cond[
                         :,
-                        t
-                        * self.config.data.channels : (t + 1)
-                        * self.config.data.channels,
+                        t * self.config.data.channels : (t + 1) * self.config.data.channels,
                     ]  # BCHW
                     frame = torch.cat(
                         [cond_t, 0.5 * torch.ones(*cond_t.shape[:-1], 2), cond_t],
                         dim=-1,
                     )
                     frame = frame.permute(0, 2, 3, 1).numpy()
-                    frame = np.stack(
-                        [
-                            putText(
-                                f.copy(), f"{t+1:2d}p", (4, 15), 0, 0.5, (1, 1, 1), 1
-                            )
-                            for f in frame
-                        ]
-                    )
+                    frame = np.stack([putText(f.copy(), f"{t+1:2d}p", (4, 15), 0, 0.5, (1, 1, 1), 1) for f in frame])
                     nrow = ceil(np.sqrt(2 * cond.shape[0]) / 2)
                     gif_frame = (
                         make_grid(
@@ -3915,29 +3347,18 @@ class NCSNRunner:
                 for t in range(pred.shape[1] // self.config.data.channels):
                     real_t = real[
                         :,
-                        t
-                        * self.config.data.channels : (t + 1)
-                        * self.config.data.channels,
+                        t * self.config.data.channels : (t + 1) * self.config.data.channels,
                     ]  # BCHW
                     pred_t = pred[
                         :,
-                        t
-                        * self.config.data.channels : (t + 1)
-                        * self.config.data.channels,
+                        t * self.config.data.channels : (t + 1) * self.config.data.channels,
                     ]  # BCHW
                     frame = torch.cat(
                         [real_t, 0.5 * torch.ones(*pred_t.shape[:-1], 2), pred_t],
                         dim=-1,
                     )
                     frame = frame.permute(0, 2, 3, 1).numpy()
-                    frame = np.stack(
-                        [
-                            putText(
-                                f.copy(), f"{t+1:02d}", (4, 15), 0, 0.5, (1, 1, 1), 1
-                            )
-                            for f in frame
-                        ]
-                    )
+                    frame = np.stack([putText(f.copy(), f"{t+1:02d}", (4, 15), 0, 0.5, (1, 1, 1), 1) for f in frame])
                     nrow = ceil(np.sqrt(2 * pred.shape[0]) / 2)
                     gif_frame = (
                         make_grid(
@@ -3950,10 +3371,7 @@ class NCSNRunner:
                         .numpy()
                     )  # HWC
                     gif_frames_pred.append((gif_frame * 255).astype("uint8"))
-                    if (
-                        t == pred.shape[1] // self.config.data.channels - 1
-                        and future == 0
-                    ):
+                    if t == pred.shape[1] // self.config.data.channels - 1 and future == 0:
                         gif_frames_pred.append((gif_frame * 255).astype("uint8"))
                     del frame, gif_frame
 
@@ -3962,15 +3380,11 @@ class NCSNRunner:
                     for t in range(pred2.shape[1] // self.config.data.channels):
                         real_t = real2[
                             :,
-                            t
-                            * self.config.data.channels : (t + 1)
-                            * self.config.data.channels,
+                            t * self.config.data.channels : (t + 1) * self.config.data.channels,
                         ]  # BCHW
                         pred_t = pred2[
                             :,
-                            t
-                            * self.config.data.channels : (t + 1)
-                            * self.config.data.channels,
+                            t * self.config.data.channels : (t + 1) * self.config.data.channels,
                         ]  # BCHW
                         frame = torch.cat(
                             [real_t, 0.5 * torch.ones(*pred_t.shape[:-1], 2), pred_t],
@@ -4012,9 +3426,7 @@ class NCSNRunner:
                     for t in range(pred_uncond.shape[1] // self.config.data.channels):
                         frame = pred_uncond[
                             :,
-                            t
-                            * self.config.data.channels : (t + 1)
-                            * self.config.data.channels,
+                            t * self.config.data.channels : (t + 1) * self.config.data.channels,
                         ]  # BCHW
                         frame = frame.permute(0, 2, 3, 1).numpy()
                         frame = np.stack(
@@ -4054,9 +3466,7 @@ class NCSNRunner:
                     for t in range(futr.shape[1] // self.config.data.channels):
                         futr_t = futr[
                             :,
-                            t
-                            * self.config.data.channels : (t + 1)
-                            * self.config.data.channels,
+                            t * self.config.data.channels : (t + 1) * self.config.data.channels,
                         ]  # BCHW
                         frame = torch.cat(
                             [futr_t, 0.5 * torch.ones(*futr_t.shape[:-1], 2), futr_t],
@@ -4097,35 +3507,25 @@ class NCSNRunner:
                 if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred],
                         fps=4,
                     )
-                elif (
-                    self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-                ):  # (1) Interpolation
+                elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
                         fps=4,
                     )
-                elif (
-                    self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-                ):  # (1) Interp + (2) Pred
+                elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
@@ -4133,9 +3533,7 @@ class NCSNRunner:
                     )
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred2],
@@ -4144,9 +3542,7 @@ class NCSNRunner:
                 elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred],
@@ -4155,25 +3551,18 @@ class NCSNRunner:
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
                             os.path.join(
-                                self.args.log_sample_path
-                                if train
-                                else self.args.video_folder,
+                                self.args.log_sample_path if train else self.args.video_folder,
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
                             fps=4,
                         )
                 elif (
-                    self.condp > 0.0
-                    and self.futrf > 0
-                    and self.futrp > 0.0
-                    and not self.prob_mask_sync
+                    self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
                 ):  # (1) Interp + (2) Pred + (3) Gen
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
@@ -4181,9 +3570,7 @@ class NCSNRunner:
                     )
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred2],
@@ -4192,25 +3579,18 @@ class NCSNRunner:
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
                             os.path.join(
-                                self.args.log_sample_path
-                                if train
-                                else self.args.video_folder,
+                                self.args.log_sample_path if train else self.args.video_folder,
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
                             fps=4,
                         )
                 elif (
-                    self.condp > 0.0
-                    and self.futrf > 0
-                    and self.futrp > 0.0
-                    and self.prob_mask_sync
+                    self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
                 ):  # (1) Interp + (3) Gen
                     imageio.mimwrite(
                         os.path.join(
-                            self.args.log_sample_path
-                            if train
-                            else self.args.video_folder,
+                            self.args.log_sample_path if train else self.args.video_folder,
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
@@ -4219,9 +3599,7 @@ class NCSNRunner:
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
                             os.path.join(
-                                self.args.log_sample_path
-                                if train
-                                else self.args.video_folder,
+                                self.args.log_sample_path if train else self.args.video_folder,
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
@@ -4242,48 +3620,27 @@ class NCSNRunner:
                     if train:
                         torch.save(
                             {"cond": cond, "pred": pred, "real": real},
-                            os.path.join(
-                                self.args.log_sample_path, f"videos_pred_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.log_sample_path, f"videos_pred_{ckpt}.pt"),
                         )
                     else:
                         torch.save(
                             {"cond": cond, "pred": pred, "real": real},
-                            os.path.join(
-                                self.args.video_folder, f"videos_pred_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.video_folder, f"videos_pred_{ckpt}.pt"),
                         )
-                    cond_im = stretch_image(
-                        cond, self.config.data.channels, self.config.data.image_size
-                    )
-                    pred_im = stretch_image(
-                        pred, self.config.data.channels, self.config.data.image_size
-                    )
-                    real_im = stretch_image(
-                        real, self.config.data.channels, self.config.data.image_size
-                    )
+                    cond_im = stretch_image(cond, self.config.data.channels, self.config.data.image_size)
+                    pred_im = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
+                    real_im = stretch_image(real, self.config.data.channels, self.config.data.image_size)
                     padding_hor = 0.5 * torch.ones(*real_im.shape[:-1], 2)
                     real_data = torch.cat([cond_im, padding_hor, real_im], dim=-1)
-                    pred_data = torch.cat(
-                        [0.5 * torch.ones_like(cond_im), padding_hor, pred_im], dim=-1
-                    )
-                    padding_ver = 0.5 * torch.ones(
-                        *real_im.shape[:-2], 2, real_data.shape[-1]
-                    )
+                    pred_data = torch.cat([0.5 * torch.ones_like(cond_im), padding_hor, pred_im], dim=-1)
+                    padding_ver = 0.5 * torch.ones(*real_im.shape[:-2], 2, real_data.shape[-1])
                     data = torch.cat([real_data, padding_ver, pred_data], dim=-2)
                     # Save
                     nrow = ceil(
                         np.sqrt(
-                            (
-                                self.config.data.num_frames_cond
-                                + self.config.sampling.num_frames_pred
-                            )
-                            * pred.shape[0]
+                            (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred) * pred.shape[0]
                         )
-                        / (
-                            self.config.data.num_frames_cond
-                            + self.config.sampling.num_frames_pred
-                        )
+                        / (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred)
                     )
                     image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
                     if train:
@@ -4307,33 +3664,19 @@ class NCSNRunner:
                     if train:
                         torch.save(
                             {"cond": cond, "pred": pred, "real": real, "futr": futr},
-                            os.path.join(
-                                self.args.log_sample_path, f"videos_interp_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.log_sample_path, f"videos_interp_{ckpt}.pt"),
                         )
                     else:
                         torch.save(
                             {"cond": cond, "pred": pred, "real": real, "futr": futr},
-                            os.path.join(
-                                self.args.video_folder, f"videos_interp_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.video_folder, f"videos_interp_{ckpt}.pt"),
                         )
-                    cond_im = stretch_image(
-                        cond, self.config.data.channels, self.config.data.image_size
-                    )
-                    pred_im = stretch_image(
-                        pred, self.config.data.channels, self.config.data.image_size
-                    )
-                    real_im = stretch_image(
-                        real, self.config.data.channels, self.config.data.image_size
-                    )
-                    futr_im = stretch_image(
-                        futr, self.config.data.channels, self.config.data.image_size
-                    )
+                    cond_im = stretch_image(cond, self.config.data.channels, self.config.data.image_size)
+                    pred_im = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
+                    real_im = stretch_image(real, self.config.data.channels, self.config.data.image_size)
+                    futr_im = stretch_image(futr, self.config.data.channels, self.config.data.image_size)
                     padding_hor = 0.5 * torch.ones(*real_im.shape[:-1], 2)
-                    real_data = torch.cat(
-                        [cond_im, padding_hor, real_im, padding_hor, futr_im], dim=-1
-                    )
+                    real_data = torch.cat([cond_im, padding_hor, real_im, padding_hor, futr_im], dim=-1)
                     pred_data = torch.cat(
                         [
                             0.5 * torch.ones_like(cond_im),
@@ -4344,25 +3687,15 @@ class NCSNRunner:
                         ],
                         dim=-1,
                     )
-                    padding_ver = 0.5 * torch.ones(
-                        *real_im.shape[:-2], 2, real_data.shape[-1]
-                    )
+                    padding_ver = 0.5 * torch.ones(*real_im.shape[:-2], 2, real_data.shape[-1])
                     data = torch.cat([real_data, padding_ver, pred_data], dim=-2)
                     # Save
                     nrow = ceil(
                         np.sqrt(
-                            (
-                                self.config.data.num_frames_cond
-                                + self.config.sampling.num_frames_pred
-                                + future
-                            )
+                            (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred + future)
                             * pred.shape[0]
                         )
-                        / (
-                            self.config.data.num_frames_cond
-                            + self.config.sampling.num_frames_pred
-                            + future
-                        )
+                        / (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred + future)
                     )
                     image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
                     if train:
@@ -4388,33 +3721,20 @@ class NCSNRunner:
                     if train:
                         torch.save(
                             {"gen": pred},
-                            os.path.join(
-                                self.args.log_sample_path, f"videos_gen_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.log_sample_path, f"videos_gen_{ckpt}.pt"),
                         )
                     else:
                         torch.save(
                             {"gen": pred},
-                            os.path.join(
-                                self.args.video_folder, f"videos_gen_{ckpt}.pt"
-                            ),
+                            os.path.join(self.args.video_folder, f"videos_gen_{ckpt}.pt"),
                         )
-                    data = stretch_image(
-                        pred, self.config.data.channels, self.config.data.image_size
-                    )
+                    data = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
                     # Save
                     nrow = ceil(
                         np.sqrt(
-                            (
-                                self.config.data.num_frames_cond
-                                + self.config.sampling.num_frames_pred
-                            )
-                            * pred.shape[0]
+                            (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred) * pred.shape[0]
                         )
-                        / (
-                            self.config.data.num_frames_cond
-                            + self.config.sampling.num_frames_pred
-                        )
+                        / (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred)
                     )
                     image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
                     if train:
@@ -4437,14 +3757,10 @@ class NCSNRunner:
                 if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
                     save_pred(pred, real)
 
-                elif (
-                    self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-                ):  # (1) Interpolation
+                elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
                     save_interp(pred, real)
 
-                elif (
-                    self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-                ):  # (1) Interp + (2) Pred
+                elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
                     save_interp(pred, real)
                     save_pred(pred2, real2)
 
@@ -4453,20 +3769,14 @@ class NCSNRunner:
                     save_gen(pred_uncond)
 
                 elif (
-                    self.condp > 0.0
-                    and self.futrf > 0
-                    and self.futrp > 0.0
-                    and not self.prob_mask_sync
+                    self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
                 ):  # (1) Interp + (2) Pred + (3) Gen
                     save_interp(pred, real)
                     save_pred(pred2, real2)
                     save_gen(pred_uncond)
 
                 elif (
-                    self.condp > 0.0
-                    and self.futrf > 0
-                    and self.futrp > 0.0
-                    and self.prob_mask_sync
+                    self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
                 ):  # (1) Interp + (2) Pred + (3) Gen
                     save_interp(pred, real)
                     save_gen(pred_uncond)
@@ -4476,17 +3786,13 @@ class NCSNRunner:
 
         # Calc MSE, PSNR, SSIM, LPIPS
         mse_list = np.array(vid_mse).reshape(-1, preds_per_test).min(-1)
-        psnr_list = (
-            (10 * np.log10(1 / np.array(vid_mse))).reshape(-1, preds_per_test).max(-1)
-        )
+        psnr_list = (10 * np.log10(1 / np.array(vid_mse))).reshape(-1, preds_per_test).max(-1)
         ssim_list = np.array(vid_ssim).reshape(-1, preds_per_test).max(-1)
         lpips_list = np.array(vid_lpips).reshape(-1, preds_per_test).min(-1)
 
         def image_metric_stuff(metric):
             avg_metric, std_metric = metric.mean().item(), metric.std().item()
-            conf95_metric = avg_metric - float(
-                st.norm.interval(alpha=0.95, loc=avg_metric, scale=st.sem(metric))[0]
-            )
+            conf95_metric = avg_metric - float(st.norm.interval(alpha=0.95, loc=avg_metric, scale=st.sem(metric))[0])
             return avg_metric, std_metric, conf95_metric
 
         avg_mse, std_mse, conf95_mse = image_metric_stuff(mse_list)
@@ -4516,22 +3822,12 @@ class NCSNRunner:
             if preds_per_test > 1:
                 fvds_list = []
                 # Calc FVD for 5 random trajs (each), and average that FVD
-                trajs = np.random.choice(
-                    np.arange(preds_per_test), (preds_per_test,), replace=False
-                )
+                trajs = np.random.choice(np.arange(preds_per_test), (preds_per_test,), replace=False)
                 for traj in trajs:
-                    fvds_list.append(
-                        frechet_distance(
-                            fake_embeddings[traj::preds_per_test], real_embeddings
-                        )
-                    )
-                fvd_traj_mean, fvd_traj_std = float(np.mean(fvds_list)), float(
-                    np.std(fvds_list)
-                )
+                    fvds_list.append(frechet_distance(fake_embeddings[traj::preds_per_test], real_embeddings))
+                fvd_traj_mean, fvd_traj_std = float(np.mean(fvds_list)), float(np.std(fvds_list))
                 fvd_traj_conf95 = fvd_traj_mean - float(
-                    st.norm.interval(
-                        alpha=0.95, loc=fvd_traj_mean, scale=st.sem(fvds_list)
-                    )[0]
+                    st.norm.interval(alpha=0.95, loc=fvd_traj_mean, scale=st.sem(fvds_list))[0]
                 )
             else:
                 fvd_traj_mean, fvd_traj_std, fvd_traj_conf95 = -1, -1, -1
@@ -4544,9 +3840,7 @@ class NCSNRunner:
                 # (1) Video Pred/Interp
                 real_embeddings = np.concatenate(real_embeddings)
                 fake_embeddings = np.concatenate(fake_embeddings)
-                avg_fvd, fvd_traj_mean, fvd_traj_std, fvd_traj_conf95 = fvd_stuff(
-                    fake_embeddings, real_embeddings
-                )
+                avg_fvd, fvd_traj_mean, fvd_traj_std, fvd_traj_conf95 = fvd_stuff(fake_embeddings, real_embeddings)
                 vid_metrics.update(
                     {
                         "fvd": avg_fvd,
@@ -4558,11 +3852,7 @@ class NCSNRunner:
 
         if second_calc:
             mse2 = np.array(vid_mse2).reshape(-1, preds_per_test).min(-1)
-            psnr2 = (
-                (10 * np.log10(1 / np.array(vid_mse2)))
-                .reshape(-1, preds_per_test)
-                .max(-1)
-            )
+            psnr2 = (10 * np.log10(1 / np.array(vid_mse2))).reshape(-1, preds_per_test).max(-1)
             ssim2 = np.array(vid_ssim2).reshape(-1, preds_per_test).max(-1)
             lpips2 = np.array(vid_lpips2).reshape(-1, preds_per_test).min(-1)
 
@@ -4637,9 +3927,7 @@ class NCSNRunner:
                 + datetime.timedelta(seconds=self.time_elapsed_prev * 3600)
             )[:-3]
         else:
-            elapsed = str(datetime.timedelta(seconds=(time.time() - self.start_time)))[
-                :-3
-            ]
+            elapsed = str(datetime.timedelta(seconds=(time.time() - self.start_time)))[:-3]
         format_p = lambda dd: ", ".join(
             [
                 f"{k}:{v:.4f}"
@@ -4653,9 +3941,7 @@ class NCSNRunner:
             ]
         )
         logging.info(f"elapsed: {elapsed}, {format_p(vid_metrics)}")
-        logging.info(
-            f"elapsed: {elapsed}, mem:{get_proc_mem():.03f}GB, GPUmem: {get_GPU_mem():.03f}GB"
-        )
+        logging.info(f"elapsed: {elapsed}, mem:{get_proc_mem():.03f}GB, GPUmem: {get_GPU_mem():.03f}GB")
 
         if train:
             return vid_metrics
@@ -4715,9 +4001,7 @@ class NCSNRunner:
                         vid_metrics["fvd_traj_conf95"],
                     )
 
-            elif (
-                self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0
-            ):  # (1) Interpolation
+            elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
 
                 (
                     vid_metrics["interp_mse"],
@@ -4765,9 +4049,7 @@ class NCSNRunner:
                         vid_metrics["fvd_traj_conf95"],
                     )
 
-            elif (
-                self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0
-            ):  # (1) Interp + (2) Pred
+            elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
 
                 (
                     vid_metrics["interp_mse"],
@@ -4924,10 +4206,7 @@ class NCSNRunner:
                     )
 
             elif (
-                self.condp > 0.0
-                and self.futrf > 0
-                and self.futrp > 0.0
-                and not self.prob_mask_sync
+                self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
             ):  # (1) Interp + (2) Pred + (3) Gen
 
                 (
@@ -5037,10 +4316,7 @@ class NCSNRunner:
                     )
 
             elif (
-                self.condp > 0.0
-                and self.futrf > 0
-                and self.futrp > 0.0
-                and self.prob_mask_sync
+                self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
             ):  # (1) Interp + (3) Gen
 
                 (
@@ -5103,9 +4379,7 @@ class NCSNRunner:
                     )
 
             logging.info(f"elapsed: {elapsed}, {format_p(vid_metrics)}")
-            self.write_to_yaml(
-                os.path.join(self.args.video_folder, "vid_metrics.yml"), vid_metrics
-            )
+            self.write_to_yaml(os.path.join(self.args.video_folder, "vid_metrics.yml"), vid_metrics)
 
     def test(self):
         scorenet = get_model(self.config)
@@ -5181,14 +4455,10 @@ class NCSNRunner:
                         loss_type=getattr(self.config.training, "loss_type", "a"),
                         gamma=getattr(self.config.model, "gamma", False),
                         L1=getattr(self.config.training, "L1", False),
-                        all_frames=getattr(
-                            self.config.model, "output_all_frames", False
-                        ),
+                        all_frames=getattr(self.config.model, "output_all_frames", False),
                     )
                     if verbose:
-                        logging.info(
-                            "step: {}, test_loss: {}".format(step, test_loss.item())
-                        )
+                        logging.info("step: {}, test_loss: {}".format(step, test_loss.item()))
 
                     mean_loss += test_loss.item()
 
@@ -5265,24 +4535,14 @@ class NCSNRunner:
         ):
 
             # Check for features
-            if os.path.exists(
-                os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))
-            ):
-                gen_samples = os.path.join(
-                    self.args.image_folder, "feats_{}.pt".format(ckpt)
-                )
+            if os.path.exists(os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))):
+                gen_samples = os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))
                 save_feats_path = None
 
             # Check for samples
-            elif os.path.exists(
-                os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt))
-            ):
-                gen_samples = torch.load(
-                    os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt))
-                )
-                save_feats_path = os.path.join(
-                    self.args.image_folder, "feats_{}.pt".format(ckpt)
-                )
+            elif os.path.exists(os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt))):
+                gen_samples = torch.load(os.path.join(self.args.image_folder, "samples_{}.pt".format(ckpt)))
+                save_feats_path = os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))
 
             # Generate samples
             else:
@@ -5302,9 +4562,7 @@ class NCSNRunner:
 
                 scorenet.eval()
 
-                num_iters = (
-                    self.config.fast_fid.num_samples // self.config.fast_fid.batch_size
-                )
+                num_iters = self.config.fast_fid.num_samples // self.config.fast_fid.batch_size
                 # output_path = os.path.join(self.args.image_folder, 'ckpt_{}'.format(ckpt))
                 # os.makedirs(output_path, exist_ok=True)
                 for i in tqdm(range(num_iters), desc="samples"):
@@ -5319,11 +4577,7 @@ class NCSNRunner:
                     if self.version == "SMLD":
                         z = torch.rand(init_samples_shape, device=self.config.device)
                         z = data_transform(self.config, z)
-                    elif (
-                        self.version == "DDPM"
-                        or self.version == "DDIM"
-                        or self.version == "FPNDM"
-                    ):
+                    elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                         if getattr(self.config.model, "gamma", False):
                             used_k, used_theta = net.k_cum[0], net.theta_t[0]
                             z = (
@@ -5336,9 +4590,7 @@ class NCSNRunner:
                             )
                             z = z - used_k * used_theta
                         else:
-                            z = torch.randn(
-                                init_samples_shape, device=self.config.device
-                            )
+                            z = torch.randn(init_samples_shape, device=self.config.device)
 
                     init_samples = z
 
@@ -5356,9 +4608,7 @@ class NCSNRunner:
                             samples, _ = next(data_iter_cond)
                         samples = samples.to(self.config.device)
                         samples = data_transform(self.config, samples)
-                        samples, cond, cond_mask = conditioning_fn(
-                            self.config, samples, conditional=conditional
-                        )
+                        samples, cond, cond_mask = conditioning_fn(self.config, samples, conditional=conditional)
                         _, cond = (
                             samples[: len(init_samples)],
                             cond[: len(init_samples)],
@@ -5374,9 +4624,7 @@ class NCSNRunner:
                         step_lr=self.config.fast_fid.step_lr,
                         verbose=self.config.fast_fid.verbose,
                         denoise=self.config.sampling.denoise,
-                        subsample_steps=getattr(
-                            self.config.sampling, "subsample", None
-                        ),
+                        subsample_steps=getattr(self.config.sampling, "subsample", None),
                         clip_before=getattr(self.config.sampling, "clip_before", True),
                         log=True,
                         gamma=getattr(self.config.model, "gamma", False),
@@ -5389,11 +4637,7 @@ class NCSNRunner:
                         self.config.data.image_size,
                     )
                     final_samples = inverse_data_transform(self.config, final_samples)
-                    gen_samples = (
-                        final_samples
-                        if i == 0
-                        else torch.cat([gen_samples, final_samples], dim=0)
-                    )
+                    gen_samples = final_samples if i == 0 else torch.cat([gen_samples, final_samples], dim=0)
 
                 # Expand it out
                 gen_samples = gen_samples.reshape(
@@ -5416,40 +4660,28 @@ class NCSNRunner:
                 )
                 save_image(
                     image_grid,
-                    os.path.join(
-                        self.args.image_folder, "image_grid_{}.png".format(ckpt)
-                    ),
+                    os.path.join(self.args.image_folder, "image_grid_{}.png".format(ckpt)),
                 )
 
-                save_feats_path = os.path.join(
-                    self.args.image_folder, "feats_{}.pt".format(ckpt)
-                )
+                save_feats_path = os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))
 
             # FID
             if self.args.no_pr:
                 stats_path = get_stats_path(
-                    getattr(
-                        self.config.fast_fid, "dataset", self.config.data.dataset
-                    ).upper(),
+                    getattr(self.config.fast_fid, "dataset", self.config.data.dataset).upper(),
                     self.args.stats_dir,
                     download=self.args.stats_download,
                 )
                 fid = get_fid(stats_path, gen_samples, self.config.device)
                 fids[ckpt] = fid
                 print("ckpt: {}, fid: {}".format(ckpt, fid))
-                self.write_to_pickle(
-                    os.path.join(self.args.image_folder, "fids.pickle"), fids
-                )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, "fids.yml"), fids
-                )
+                self.write_to_pickle(os.path.join(self.args.image_folder, "fids.pickle"), fids)
+                self.write_to_yaml(os.path.join(self.args.image_folder, "fids.yml"), fids)
 
             # FID, precision, recall
             else:
                 ds_feats_path = get_feats_path(
-                    getattr(
-                        self.config.fast_fid, "dataset", self.config.data.dataset
-                    ).upper(),
+                    getattr(self.config.fast_fid, "dataset", self.config.data.dataset).upper(),
                     self.args.feats_dir,
                 )
                 k = self.config.fast_fid.pr_nn_k
@@ -5461,18 +4693,10 @@ class NCSNRunner:
                     save_feats_path=save_feats_path,
                 )
                 fids[ckpt], precisions[ckpt], recalls[ckpt] = fid, precision, recall
-                print(
-                    "ckpt: {}, fid: {}, precision: {}, recall: {}".format(
-                        ckpt, fid, precision, recall
-                    )
-                )
+                print("ckpt: {}, fid: {}, precision: {}, recall: {}".format(ckpt, fid, precision, recall))
 
-                self.write_to_pickle(
-                    os.path.join(self.args.image_folder, "fids.pickle"), fids
-                )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, "fids.yml"), fids
-                )
+                self.write_to_pickle(os.path.join(self.args.image_folder, "fids.pickle"), fids)
+                self.write_to_yaml(os.path.join(self.args.image_folder, "fids.yml"), fids)
                 self.write_to_pickle(
                     os.path.join(self.args.image_folder, f"precisions_k{k}.pickle"),
                     precisions,
@@ -5485,15 +4709,11 @@ class NCSNRunner:
                     os.path.join(self.args.image_folder, f"recalls_k{k}.pickle"),
                     recalls,
                 )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls
-                )
+                self.write_to_yaml(os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls)
 
     def fast_ensemble_fid(self):
         num_ensembles = 5
-        scorenets = [
-            NCSN(self.config).to(self.config.device) for _ in range(num_ensembles)
-        ]
+        scorenets = [NCSN(self.config).to(self.config.device) for _ in range(num_ensembles)]
         scorenets = [torch.nn.DataParallel(scorenet) for scorenet in scorenets]
 
         # sigmas = get_sigmas(self.config)
@@ -5537,9 +4757,7 @@ class NCSNRunner:
                 ckpt - (num_ensembles - 1) * self.config.fast_fid.freq,
             )
             index = 0
-            for i in range(
-                begin_ckpt, ckpt + self.config.fast_fid.freq, self.config.fast_fid.freq
-            ):
+            for i in range(begin_ckpt, ckpt + self.config.fast_fid.freq, self.config.fast_fid.freq):
                 states = torch.load(
                     os.path.join(self.args.log_path, f"checkpoint_{i}.pt"),
                     map_location=self.config.device,
@@ -5550,14 +4768,9 @@ class NCSNRunner:
 
             def scorenet(x, labels, cond=None):
                 num_ckpts = (ckpt - begin_ckpt) // self.config.fast_fid.freq + 1
-                return (
-                    sum([scorenets[i](x, labels, cond) for i in range(num_ckpts)])
-                    / num_ckpts
-                )
+                return sum([scorenets[i](x, labels, cond) for i in range(num_ckpts)]) / num_ckpts
 
-            num_iters = (
-                self.config.fast_fid.num_samples // self.config.fast_fid.batch_size
-            )
+            num_iters = self.config.fast_fid.num_samples // self.config.fast_fid.batch_size
             output_path = os.path.join(self.args.image_folder, "ckpt_{}".format(ckpt))
             os.makedirs(output_path, exist_ok=True)
             for i in range(num_iters):
@@ -5572,11 +4785,7 @@ class NCSNRunner:
                 if self.version == "SMLD":
                     z = torch.rand(init_samples_shape, device=self.config.device)
                     z = data_transform(self.config, z)
-                elif (
-                    self.version == "DDPM"
-                    or self.version == "DDIM"
-                    or self.version == "FPNDM"
-                ):
+                elif self.version == "DDPM" or self.version == "DDIM" or self.version == "FPNDM":
                     if getattr(self.config.model, "gamma", False):
                         used_k, used_theta = net.k_cum[0], net.theta_t[0]
                         z = (
@@ -5607,9 +4816,7 @@ class NCSNRunner:
                         samples, _ = next(data_iter_cond)
                     samples = samples.to(self.config.device)
                     samples = data_transform(self.config, samples)
-                    samples, cond, _ = conditioning_fn(
-                        self.config, samples, conditional=conditional
-                    )
+                    samples, cond, _ = conditioning_fn(self.config, samples, conditional=conditional)
                     samples, cond = (
                         samples[: len(init_samples)],
                         cond[: len(init_samples)],
@@ -5642,47 +4849,29 @@ class NCSNRunner:
             # FID
             if self.args.no_pr:
                 stats_path = get_stats_path(
-                    getattr(
-                        self.config.fast_fid, "dataset", self.config.data.dataset
-                    ).upper(),
+                    getattr(self.config.fast_fid, "dataset", self.config.data.dataset).upper(),
                     self.args.stats_dir,
                     download=self.args.stats_download,
                 )
                 fid = get_fid(stats_path, final_samples, self.config.device)
                 fids[ckpt] = fid
                 print("ckpt: {}, fid: {}".format(ckpt, fid))
-                self.write_to_pickle(
-                    os.path.join(self.args.image_folder, "fids.pickle"), fids
-                )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, "fids.yml"), fids
-                )
+                self.write_to_pickle(os.path.join(self.args.image_folder, "fids.pickle"), fids)
+                self.write_to_yaml(os.path.join(self.args.image_folder, "fids.yml"), fids)
 
             # FID, precision, recall
             else:
                 feats_path = get_feats_path(
-                    getattr(
-                        self.config.fast_fid, "dataset", self.config.data.dataset
-                    ).upper(),
+                    getattr(self.config.fast_fid, "dataset", self.config.data.dataset).upper(),
                     self.args.feats_dir,
                 )
                 k = self.config.fast_fid.pr_nn_k
-                fid, precision, recall = get_fid_PR(
-                    feats_path, final_samples, self.config.device, k=k
-                )
+                fid, precision, recall = get_fid_PR(feats_path, final_samples, self.config.device, k=k)
                 fids[ckpt], precisions[ckpt], recalls[ckpt] = fid, precision, recall
-                print(
-                    "ckpt: {}, fid: {}, precision: {}, recall: {}".format(
-                        ckpt, fid, precision, recall
-                    )
-                )
+                print("ckpt: {}, fid: {}, precision: {}, recall: {}".format(ckpt, fid, precision, recall))
 
-                self.write_to_pickle(
-                    os.path.join(self.args.image_folder, "fids.pickle"), fids
-                )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, "fids.yml"), fids
-                )
+                self.write_to_pickle(os.path.join(self.args.image_folder, "fids.pickle"), fids)
+                self.write_to_yaml(os.path.join(self.args.image_folder, "fids.yml"), fids)
                 self.write_to_pickle(
                     os.path.join(self.args.image_folder, f"precisions_k{k}.pickle"),
                     precisions,
@@ -5695,19 +4884,13 @@ class NCSNRunner:
                     os.path.join(self.args.image_folder, f"recalls_k{k}.pickle"),
                     recalls,
                 )
-                self.write_to_yaml(
-                    os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls
-                )
+                self.write_to_yaml(os.path.join(self.args.image_folder, f"recalls_k{k}.yml"), recalls)
 
     def get_sampler(self):
         # Sampler
         if self.version == "SMLD":
             consistent = getattr(self.config.sampling, "consistent", False)
-            sampler = (
-                anneal_Langevin_dynamics_consistent
-                if consistent
-                else anneal_Langevin_dynamics
-            )
+            sampler = anneal_Langevin_dynamics_consistent if consistent else anneal_Langevin_dynamics
         elif self.version == "DDPM":
             sampler = partial(ddpm_sampler, config=self.config)
         elif self.version == "DDIM":

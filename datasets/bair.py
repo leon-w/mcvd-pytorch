@@ -26,9 +26,7 @@ class BAIRDataset(Dataset):
         self.random_time = random_time
         self.random_horizontal_flip = random_horizontal_flip
         self.color_jitter = color_jitter
-        self.total_videos = (
-            total_videos  # If we wish to restrict total number of videos (e.g. for val)
-        )
+        self.total_videos = total_videos  # If we wish to restrict total number of videos (e.g. for val)
         self.with_target = with_target
 
         self.jitter = transforms.ColorJitter(hue=color_jitter)
@@ -39,9 +37,7 @@ class BAIRDataset(Dataset):
         print(f"Dataset length: {self.__len__()}")
 
     def window_stack(self, a, width=3, step=1):
-        return torch.stack(
-            [a[i : 1 + i - width or None : step] for i in range(width)]
-        ).transpose(0, 1)
+        return torch.stack([a[i : 1 + i - width or None : step] for i in range(width)]).transpose(0, 1)
 
     def len_of_vid(self, index):
         video_index = index % self.__len__()
@@ -74,9 +70,7 @@ class BAIRDataset(Dataset):
                 # img = Image.frombytes('RGB', (64, 64), byte_str)
                 # arr = np.expand_dims(np.array(img.getdata()).reshape(img.size[1], img.size[0], 3), 0)
                 img = f[str(idx_in_shard)][str(i)][()]
-                arr = transforms.RandomHorizontalFlip(flip_p)(
-                    transforms.ToTensor()(img)
-                )
+                arr = transforms.RandomHorizontalFlip(flip_p)(transforms.ToTensor()(img))
                 prefinals.append(arr)
 
         data = torch.stack(prefinals)

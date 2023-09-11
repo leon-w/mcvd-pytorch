@@ -62,13 +62,9 @@ class NCSNpp(nn.Module):
         dropout = getattr(config.model, "dropout", 0.0)
         resamp_with_conv = True
         self.num_resolutions = num_resolutions = len(ch_mult)
-        self.all_resolutions = all_resolutions = [
-            config.data.image_size // (2 ** i) for i in range(num_resolutions)
-        ]
+        self.all_resolutions = all_resolutions = [config.data.image_size // (2 ** i) for i in range(num_resolutions)]
 
-        self.conditional = conditional = getattr(
-            config.model, "time_conditional", True
-        )  # noise-conditional
+        self.conditional = conditional = getattr(config.model, "time_conditional", True)  # noise-conditional
         self.cond_emb = getattr(config.model, "cond_emb", False)
         fir = True
         fir_kernel = [1, 3, 3, 1]
@@ -83,9 +79,7 @@ class NCSNpp(nn.Module):
         if embedding_type == "fourier":
             # Gaussian Fourier features embeddings.
 
-            modules.append(
-                layerspp.GaussianFourierProjection(embedding_size=nf, scale=16)
-            )
+            modules.append(layerspp.GaussianFourierProjection(embedding_size=nf, scale=16))
             embed_dim = 2 * nf
 
         elif embedding_type == "positional":
@@ -115,16 +109,10 @@ class NCSNpp(nn.Module):
             conv3x3 = functools.partial(
                 layers3d.ddpm_conv3x3_pseudo3d, n_frames=self.n_frames, act=self.act
             )  # Activation here as per https://arxiv.org/abs/1809.04096
-            conv3x3_last = functools.partial(
-                layers3d.ddpm_conv3x3_pseudo3d, n_frames=self.num_frames, act=self.act
-            )
+            conv3x3_last = functools.partial(layers3d.ddpm_conv3x3_pseudo3d, n_frames=self.num_frames, act=self.act)
         elif self.is3d:
-            conv3x3 = functools.partial(
-                layers3d.ddpm_conv3x3_3d, n_frames=self.n_frames
-            )
-            conv3x3_last = functools.partial(
-                layers3d.ddpm_conv3x3_3d, n_frames=self.num_frames
-            )
+            conv3x3 = functools.partial(layers3d.ddpm_conv3x3_3d, n_frames=self.n_frames)
+            conv3x3_last = functools.partial(layers3d.ddpm_conv3x3_3d, n_frames=self.num_frames)
         else:
             conv3x3 = layerspp.conv3x3
             conv3x3_last = layerspp.conv3x3
@@ -267,9 +255,7 @@ class NCSNpp(nn.Module):
         for i_level in reversed(range(num_resolutions)):
             for i_block in range(num_res_blocks + 1):
                 out_ch = numf * ch_mult[i_level]
-                if (
-                    self.is3d
-                ):  # 1x1 self.num_frames + self.num_frames_cond -> self.num_frames
+                if self.is3d:  # 1x1 self.num_frames + self.num_frames_cond -> self.num_frames
                     modules.append(layerspp.conv1x1(self.n_frames, self.num_frames))
                     in_ch_old = int(hs_c.pop() * self.num_frames / self.n_frames)
                 else:
@@ -298,9 +284,7 @@ class NCSNpp(nn.Module):
                 n_frames=self.num_frames,
             )
         )
-        modules.append(
-            conv3x3_last(in_ch, channels * self.num_frames, init_scale=init_scale)
-        )
+        modules.append(conv3x3_last(in_ch, channels * self.num_frames, init_scale=init_scale))
 
         self.all_modules = nn.ModuleList(modules)
 
@@ -315,11 +299,7 @@ class NCSNpp(nn.Module):
         if self.is3d:  # B, N*C, H, W -> B, C*N, H, W : subtle but important difference!
             B, NC, H, W = x.shape
             CN = NC
-            x = (
-                x.reshape(B, self.n_frames, self.channels, H, W)
-                .permute(0, 2, 1, 3, 4)
-                .reshape(B, CN, H, W)
-            )
+            x = x.reshape(B, self.n_frames, self.channels, H, W).permute(0, 2, 1, 3, 4).reshape(B, CN, H, W)
 
         if self.embedding_type == "fourier":
             # Gaussian Fourier features embeddings.
@@ -341,12 +321,8 @@ class NCSNpp(nn.Module):
             m_idx += 1
             if self.cond_emb:
                 if cond_mask is None:
-                    cond_mask = torch.ones(
-                        x.shape[0], device=x.device, dtype=torch.int32
-                    )
-                temb = torch.cat(
-                    [temb, modules[m_idx](cond_mask)], dim=1
-                )  # b x (k/8 + k)
+                    cond_mask = torch.ones(x.shape[0], device=x.device, dtype=torch.int32)
+                temb = torch.cat([temb, modules[m_idx](cond_mask)], dim=1)  # b x (k/8 + k)
                 m_idx += 1
         else:
             temb = None
@@ -462,11 +438,7 @@ class NCSNpp(nn.Module):
         if self.is3d:  # B, C*N, H, W -> B, N*C, H, W subtle but important difference!
             B, CN, H, W = h.shape
             NC = CN
-            h = (
-                h.reshape(B, self.channels, self.num_frames, H, W)
-                .permute(0, 2, 1, 3, 4)
-                .reshape(B, NC, H, W)
-            )
+            h = h.reshape(B, self.channels, self.num_frames, H, W).permute(0, 2, 1, 3, 4).reshape(B, NC, H, W)
 
         return h
 
@@ -500,13 +472,9 @@ class SPADE_NCSNpp(nn.Module):
         dropout = getattr(config.model, "dropout", 0.0)
         resamp_with_conv = True
         self.num_resolutions = num_resolutions = len(ch_mult)
-        self.all_resolutions = all_resolutions = [
-            config.data.image_size // (2 ** i) for i in range(num_resolutions)
-        ]
+        self.all_resolutions = all_resolutions = [config.data.image_size // (2 ** i) for i in range(num_resolutions)]
 
-        self.conditional = conditional = getattr(
-            config.model, "time_conditional", True
-        )  # noise-conditional
+        self.conditional = conditional = getattr(config.model, "time_conditional", True)  # noise-conditional
         self.cond_emb = getattr(config.model, "cond_emb", False)
         fir = True
         fir_kernel = [1, 3, 3, 1]
@@ -523,9 +491,7 @@ class SPADE_NCSNpp(nn.Module):
         if embedding_type == "fourier":
             # Gaussian Fourier features embeddings.
 
-            modules.append(
-                layerspp.GaussianFourierProjection(embedding_size=nf, scale=16)
-            )
+            modules.append(layerspp.GaussianFourierProjection(embedding_size=nf, scale=16))
             embed_dim = 2 * nf
 
         elif embedding_type == "positional":
@@ -555,16 +521,10 @@ class SPADE_NCSNpp(nn.Module):
             conv3x3 = functools.partial(
                 layers3d.ddpm_conv3x3_pseudo3d, n_frames=self.num_frames, act=self.act
             )  # Activation here as per https://arxiv.org/abs/1809.04096
-            conv1x1_cond = functools.partial(
-                layers3d.ddpm_conv1x1_pseudo3d, n_frames=self.channels, act=self.act
-            )
+            conv1x1_cond = functools.partial(layers3d.ddpm_conv1x1_pseudo3d, n_frames=self.channels, act=self.act)
         elif self.is3d:
-            conv3x3 = functools.partial(
-                layers3d.ddpm_conv3x3_3d, n_frames=self.num_frames
-            )
-            conv1x1_cond = functools.partial(
-                layers3d.ddpm_conv1x1_3d, n_frames=self.channels
-            )
+            conv3x3 = functools.partial(layers3d.ddpm_conv3x3_3d, n_frames=self.num_frames)
+            conv1x1_cond = functools.partial(layers3d.ddpm_conv1x1_3d, n_frames=self.channels)
         else:
             conv3x3 = layerspp.conv3x3
             conv1x1 = conv1x1_cond = layerspp.conv1x1
@@ -708,9 +668,7 @@ class SPADE_NCSNpp(nn.Module):
                 cond_conv1=conv1x1_cond,
             )
         )
-        modules.append(
-            conv3x3(in_ch, channels * self.num_frames, init_scale=init_scale)
-        )
+        modules.append(conv3x3(in_ch, channels * self.num_frames, init_scale=init_scale))
 
         self.all_modules = nn.ModuleList(modules)
 
@@ -725,11 +683,7 @@ class SPADE_NCSNpp(nn.Module):
         if self.is3d:  # B, N*C, H, W -> B, C*N, H, W : subtle but important difference!
             B, NC, H, W = x.shape
             CN = NC
-            x = (
-                x.reshape(B, self.num_frames, self.channels, H, W)
-                .permute(0, 2, 1, 3, 4)
-                .reshape(B, CN, H, W)
-            )
+            x = x.reshape(B, self.num_frames, self.channels, H, W).permute(0, 2, 1, 3, 4).reshape(B, CN, H, W)
             if cond is not None:
                 B, NC, H, W = cond.shape
                 CN = NC
@@ -759,12 +713,8 @@ class SPADE_NCSNpp(nn.Module):
             m_idx += 1
             if self.cond_emb:
                 if cond_mask is None:
-                    cond_mask = torch.ones(
-                        x.shape[0], device=x.device, dtype=torch.int32
-                    )
-                temb = torch.cat(
-                    [temb, modules[m_idx](cond_mask)], dim=1
-                )  # b x (k/8 + k)
+                    cond_mask = torch.ones(x.shape[0], device=x.device, dtype=torch.int32)
+                temb = torch.cat([temb, modules[m_idx](cond_mask)], dim=1)  # b x (k/8 + k)
                 m_idx += 1
         else:
             temb = None
@@ -852,11 +802,7 @@ class SPADE_NCSNpp(nn.Module):
         if self.is3d:  # B, C*N, H, W -> B, N*C, H, W subtle but important difference!
             B, CN, H, W = h.shape
             NC = CN
-            h = (
-                h.reshape(B, self.channels, self.num_frames, H, W)
-                .permute(0, 2, 1, 3, 4)
-                .reshape(B, NC, H, W)
-            )
+            h = h.reshape(B, self.channels, self.num_frames, H, W).permute(0, 2, 1, 3, 4).reshape(B, NC, H, W)
 
         return h
 
@@ -880,9 +826,7 @@ class UNetMore_DDPM(nn.Module):
         self.schedule = getattr(config.model, "sigma_dist", "linear")
         if self.schedule == "linear":
             self.register_buffer("betas", get_sigmas(config))
-            self.register_buffer(
-                "alphas", torch.cumprod(1 - self.betas.flip(0), 0).flip(0)
-            )
+            self.register_buffer("alphas", torch.cumprod(1 - self.betas.flip(0), 0).flip(0))
             self.register_buffer(
                 "alphas_prev",
                 torch.cat([self.alphas[1:], torch.tensor([1.0]).to(self.alphas)]),
@@ -914,19 +858,13 @@ class UNetMore_DDPM(nn.Module):
             # if labels is None:
             #     labels = torch.randint(0, len(alphas), (cond.shape[0],), device=cond.device)
             labels = y
-            used_alphas = alphas[labels].reshape(
-                cond.shape[0], *([1] * len(cond.shape[1:]))
-            )
+            used_alphas = alphas[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
             if self.gamma:
                 used_k = (
-                    self.k_cum[labels]
-                    .reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
-                    .repeat(1, *cond.shape[1:])
+                    self.k_cum[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:]))).repeat(1, *cond.shape[1:])
                 )
                 used_theta = (
-                    self.theta_t[labels]
-                    .reshape(cond.shape[0], *([1] * len(cond.shape[1:])))
-                    .repeat(1, *cond.shape[1:])
+                    self.theta_t[labels].reshape(cond.shape[0], *([1] * len(cond.shape[1:]))).repeat(1, *cond.shape[1:])
                 )
                 z = torch.distributions.gamma.Gamma(used_k, 1 / used_theta).sample()
                 z = (z - used_k * used_theta) / (1 - used_alphas).sqrt()

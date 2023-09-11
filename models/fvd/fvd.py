@@ -31,9 +31,7 @@ i3D_WEIGHTS_URL = "https://www.dropbox.com/s/ge9e5ujwgetktms/i3d_torchscript.pt"
 
 
 def load_i3d_pretrained(device=torch.device("cpu")):
-    filepath = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "i3d_torchscript.pt"
-    )
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "i3d_torchscript.pt")
     if not os.path.exists(filepath):
         os.system(f"wget {i3D_WEIGHTS_URL} -O {filepath}")
     i3d = torch.jit.load(filepath).eval().to(device)
@@ -54,12 +52,7 @@ def get_feats(videos, detector, device, bs=10):
                 [
                     feats,
                     detector(
-                        torch.stack(
-                            [
-                                preprocess_single(video)
-                                for video in videos[i * bs : (i + 1) * bs]
-                            ]
-                        ).to(device),
+                        torch.stack([preprocess_single(video) for video in videos[i * bs : (i + 1) * bs]]).to(device),
                         **detector_kwargs,
                     )
                     .detach()
@@ -217,9 +210,7 @@ def get_logits(i3d, videos, device):
             logits = torch.vstack(
                 [
                     logits,
-                    i3d(preprocess_single(videos[i]).unsqueeze(0).to(device))
-                    .detach()
-                    .cpu(),
+                    i3d(preprocess_single(videos[i]).unsqueeze(0).to(device)).detach().cpu(),
                 ]
             )
     # logits = torch.cat(logits, dim=0)

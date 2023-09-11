@@ -26,9 +26,7 @@ class Kinetics_HDF5Maker(HDF5Maker):
         self.writer["target"].create_dataset(str(self.count), data=target)
         self.writer.create_group(str(self.count))
         for i, frame in enumerate(data):
-            self.writer[str(self.count)].create_dataset(
-                str(i), data=frame, dtype=dtype, compression="lzf"
-            )
+            self.writer[str(self.count)].create_dataset(str(i), data=frame, dtype=dtype, compression="lzf")
 
 
 def center_crop(image):
@@ -84,9 +82,7 @@ def process_video(v, targz_file, out_dir, image_size, image_size2=None):
         if image_size2 is None:
             frames = read_video(os.path.join(out_dir, os.path.basename(v)), image_size)
         else:
-            frames = read_video2(
-                os.path.join(out_dir, os.path.basename(v)), image_size, image_size2
-            )
+            frames = read_video2(os.path.join(out_dir, os.path.basename(v)), image_size, image_size2)
     except StopIteration:
         pass
         # break
@@ -116,14 +112,10 @@ def make_h5_from_kinetics_multi2(
 ):
 
     # H5 maker
-    h5_maker = Kinetics_HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = Kinetics_HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     if image_size2 is not None:
-        h5_maker2 = Kinetics_HDF5Maker(
-            out_dir2, num_per_shard=vids_per_shard, force=force_h5, video=True
-        )
+        h5_maker2 = Kinetics_HDF5Maker(out_dir2, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     targz_all = sorted(glob.glob(os.path.join(kinetics600_dir, "*.tar.gz")))
 
@@ -134,20 +126,14 @@ def make_h5_from_kinetics_multi2(
 
         t = target if not test else -1
         if not test:
-            target_names.append(
-                os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0]
-            )
+            target_names.append(os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0])
 
         # get video filenames
         with tarfile.open(targz_file) as file:
-            video_files = [
-                v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"
-            ]
+            video_files = [v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"]
 
         if videos_per_class is not None:
-            video_files = video_files[
-                video_idx_per_class : video_idx_per_class + videos_per_class
-            ]
+            video_files = video_files[video_idx_per_class : video_idx_per_class + videos_per_class]
 
         # process videos
         p_video = partial(
@@ -229,9 +215,7 @@ def make_h5_from_kinetics_multi(
 ):
 
     # H5 maker
-    h5_maker = Kinetics_HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = Kinetics_HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     targz_all = sorted(glob.glob(os.path.join(kinetics600_dir, "*.tar.gz")))
 
@@ -242,25 +226,17 @@ def make_h5_from_kinetics_multi(
 
         t = target if not test else -1
         if not test:
-            target_names.append(
-                os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0]
-            )
+            target_names.append(os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0])
 
         # get video filenames
         with tarfile.open(targz_file) as file:
-            video_files = [
-                v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"
-            ]
+            video_files = [v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"]
 
         if videos_per_class is not None:
-            video_files = video_files[
-                video_idx_per_class : video_idx_per_class + videos_per_class
-            ]
+            video_files = video_files[video_idx_per_class : video_idx_per_class + videos_per_class]
 
         # process videos
-        p_video = partial(
-            process_video, targz_file=targz_file, out_dir=out_dir, image_size=image_size
-        )
+        p_video = partial(process_video, targz_file=targz_file, out_dir=out_dir, image_size=image_size)
 
         # process 100 videos at a time
         pbar = tqdm(total=len(video_files))
@@ -311,9 +287,7 @@ def make_h5_from_kinetics(
 ):
 
     # H5 maker
-    h5_maker = Kinetics_HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = Kinetics_HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     targz_all = sorted(glob.glob(os.path.join(kinetics600_dir, "*.tar.gz")))
 
@@ -323,23 +297,17 @@ def make_h5_from_kinetics(
     for target, targz_file in tqdm(enumerate(targz_all), total=len(targz_all)):
         t = target if not test else -1
         if not test:
-            target_names.append(
-                os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0]
-            )
+            target_names.append(os.path.splitext(os.path.splitext(os.path.basename(targz_file))[0])[0])
         # open file
         file = tarfile.open(targz_file)
         # read videos
-        video_files = [
-            v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"
-        ]
+        video_files = [v for v in sorted(file.getnames()) if os.path.splitext(v)[-1] == ".mp4"]
         for v in tqdm(video_files):
             # extract mp4 video
             file.extract(v, out_dir)
             # Add to dataset
             try:
-                frames = read_video(
-                    os.path.join(out_dir, os.path.basename(v)), image_size
-                )
+                frames = read_video(os.path.join(out_dir, os.path.basename(v)), image_size)
                 h5_maker.add_data((frames, t), dtype="uint8")
                 if not test:
                     append_to_dict_list(targets, target, count)
@@ -377,9 +345,7 @@ if __name__ == "__main__":
     parser.add_argument("--out_dir", type=str, help="Directory to save .hdf5 files")
     parser.add_argument("--k600_targz_dir", type=str, help="Path to 'k600_targz' ")
     parser.add_argument("--image_size", type=int, default=128)
-    parser.add_argument(
-        "--out_dir2", type=str, default=None, help="Directory to save .hdf5 files"
-    )
+    parser.add_argument("--out_dir2", type=str, default=None, help="Directory to save .hdf5 files")
     parser.add_argument("--image_size2", type=int, default=None)
     parser.add_argument("--videos_per_class", type=int, default=None)
     parser.add_argument("--video_idx_per_class", type=int, default=0)

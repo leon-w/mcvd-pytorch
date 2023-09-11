@@ -41,20 +41,14 @@ def get_seq(data_dir, dname):
             yield f, k, image_seq
 
 
-def make_h5_from_bair(
-    bair_dir, split="train", out_dir="./h5_ds", vids_per_shard=100000, force_h5=False
-):
+def make_h5_from_bair(bair_dir, split="train", out_dir="./h5_ds", vids_per_shard=100000, force_h5=False):
 
     # H5 maker
-    h5_maker = HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     seq_generator = get_seq(bair_dir, split)
 
-    filenames = gfile.Glob(
-        os.path.join("%s/softmotion30_44k/%s" % (bair_dir, split), "*")
-    )
+    filenames = gfile.Glob(os.path.join("%s/softmotion30_44k/%s" % (bair_dir, split), "*"))
     for file in tqdm(filenames):
 
         # num = sum(1 for _ in tf.python_io.tf_record_iterator(file))

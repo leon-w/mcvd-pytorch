@@ -24,17 +24,11 @@ class KTH_HDF5Maker(HDF5Maker):
     def add_video_data(self, data, dtype=None):
         data, person, target = data
         self.writer["len"].create_dataset(str(self.count), data=len(data))
-        self.writer["person"].create_dataset(
-            str(self.count), data=person, dtype="uint8"
-        )
-        self.writer["target"].create_dataset(
-            str(self.count), data=target, dtype="uint8"
-        )
+        self.writer["person"].create_dataset(str(self.count), data=person, dtype="uint8")
+        self.writer["target"].create_dataset(str(self.count), data=target, dtype="uint8")
         self.writer.create_group(str(self.count))
         for i, frame in enumerate(data):
-            self.writer[str(self.count)].create_dataset(
-                str(i), data=frame, dtype=dtype, compression="lzf"
-            )
+            self.writer[str(self.count)].create_dataset(str(i), data=frame, dtype=dtype, compression="lzf")
 
 
 def read_video(video, image_size):
@@ -80,14 +74,10 @@ def append_to_dict_list(d, key, value):
     d[key].append(value)
 
 
-def make_h5_from_kth(
-    kth_dir, image_size=64, out_dir="./h5_ds", vids_per_shard=1000000, force_h5=False
-):
+def make_h5_from_kth(kth_dir, image_size=64, out_dir="./h5_ds", vids_per_shard=1000000, force_h5=False):
 
     # H5 maker
-    h5_maker = KTH_HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = KTH_HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     # data_root = '/path/to/Datasets/KTH'
     # image_size = 64

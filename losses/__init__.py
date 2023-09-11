@@ -12,15 +12,11 @@ def get_optimizer(config, parameters):
             eps=config.optim.eps,
         )
     elif config.optim.optimizer == "RMSProp":
-        return optim.RMSprop(
-            parameters, lr=config.optim.lr, weight_decay=config.optim.weight_decay
-        )
+        return optim.RMSprop(parameters, lr=config.optim.lr, weight_decay=config.optim.weight_decay)
     elif config.optim.optimizer == "SGD":
         return optim.SGD(parameters, lr=config.optim.lr, momentum=0.9)
     else:
-        raise NotImplementedError(
-            "Optimizer {} not understood.".format(config.optim.optimizer)
-        )
+        raise NotImplementedError("Optimizer {} not understood.".format(config.optim.optimizer))
 
 
 def warmup_lr(optimizer, step, warmup, max_lr):

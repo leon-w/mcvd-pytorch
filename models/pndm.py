@@ -27,9 +27,7 @@ def transfer(x, t, t_next, et, alphas_cump, clip_before=False):
 
     x_delta = (at_next - at) * (
         (1 / (at.sqrt() * (at.sqrt() + at_next.sqrt()))) * x
-        - 1
-        / (at.sqrt() * (((1 - at_next) * at).sqrt() + ((1 - at) * at_next).sqrt()))
-        * et
+        - 1 / (at.sqrt() * (((1 - at_next) * at).sqrt() + ((1 - at) * at_next).sqrt())) * et
     )
 
     x_next = x + x_delta

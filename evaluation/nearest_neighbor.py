@@ -104,9 +104,7 @@ def get_nearest_neighbors(dataset, path, name, n_samples, k=10, cuda=True):
     data = torch.cat(data, dim=0)
 
     samples = torch.load(path)[:n_samples]
-    flipped_samples = torch.stack(
-        [to_tensor(flipper(to_pil(img))) for img in samples], dim=0
-    )
+    flipped_samples = torch.stack([to_tensor(flipper(to_pil(img))) for img in samples], dim=0)
     if cuda:
         samples = samples.cuda()
         flipped_samples = flipped_samples.cuda()
@@ -132,15 +130,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.dataset == "church":
         transforms = Compose([Resize(96), CenterCrop(96), ToTensor()])
-        dataset = LSUN(
-            "exp/datasets/lsun", ["church_outdoor_train"], transform=transforms
-        )
+        dataset = LSUN("exp/datasets/lsun", ["church_outdoor_train"], transform=transforms)
 
     elif args.dataset == "tower" or args.dataset == "bedroom":
         transforms = Compose([Resize(128), CenterCrop(128), ToTensor()])
-        dataset = LSUN(
-            "exp/datasets/lsun", ["{}_train".format(args.dataset)], transform=transforms
-        )
+        dataset = LSUN("exp/datasets/lsun", ["{}_train".format(args.dataset)], transform=transforms)
 
     elif args.dataset == "celeba":
         transforms = Compose(
@@ -158,6 +152,4 @@ if __name__ == "__main__":
         dataset = FFHQ(path="exp/datasets/FFHQ", transform=ToTensor(), resolution=256)
 
     dataloader = DataLoader(dataset, batch_size=128, drop_last=False)
-    get_nearest_neighbors(
-        dataloader, args.path, args.i, args.n_samples, args.k, torch.cuda.is_available()
-    )
+    get_nearest_neighbors(dataloader, args.path, args.i, args.n_samples, args.k, torch.cuda.is_available())

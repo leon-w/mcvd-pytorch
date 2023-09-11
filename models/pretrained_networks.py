@@ -92,9 +92,7 @@ class alexnet(torch.nn.Module):
         h_relu4 = h
         h = self.slice5(h)
         h_relu5 = h
-        alexnet_outputs = namedtuple(
-            "AlexnetOutputs", ["relu1", "relu2", "relu3", "relu4", "relu5"]
-        )
+        alexnet_outputs = namedtuple("AlexnetOutputs", ["relu1", "relu2", "relu3", "relu4", "relu5"])
         out = alexnet_outputs(h_relu1, h_relu2, h_relu3, h_relu4, h_relu5)
 
         return out
@@ -135,9 +133,7 @@ class vgg16(torch.nn.Module):
         h_relu4_3 = h
         h = self.slice5(h)
         h_relu5_3 = h
-        vgg_outputs = namedtuple(
-            "VggOutputs", ["relu1_2", "relu2_2", "relu3_3", "relu4_3", "relu5_3"]
-        )
+        vgg_outputs = namedtuple("VggOutputs", ["relu1_2", "relu2_2", "relu3_3", "relu4_3", "relu5_3"])
         out = vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_3, h_relu4_3, h_relu5_3)
 
         return out

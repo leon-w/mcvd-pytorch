@@ -57,14 +57,10 @@ def process_video(video_files, image_size):
     return frames
 
 
-def make_h5_from_cityscapes_multi(
-    cityscapes_dir, image_size, out_dir="./h5_ds", vids_per_shard=100000, force_h5=False
-):
+def make_h5_from_cityscapes_multi(cityscapes_dir, image_size, out_dir="./h5_ds", vids_per_shard=100000, force_h5=False):
 
     # H5 maker
-    h5_maker = HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     filenames_all = sorted(glob.glob(os.path.join(cityscapes_dir, "*", "*.png")))
     videos = np.array(filenames_all).reshape(-1, 30)
@@ -91,14 +87,10 @@ def make_h5_from_cityscapes_multi(
     h5_maker.close()
 
 
-def make_h5_from_cityscapes(
-    cityscapes_dir, image_size, out_dir="./h5_ds", vids_per_shard=100000, force_h5=False
-):
+def make_h5_from_cityscapes(cityscapes_dir, image_size, out_dir="./h5_ds", vids_per_shard=100000, force_h5=False):
 
     # H5 maker
-    h5_maker = HDF5Maker(
-        out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True
-    )
+    h5_maker = HDF5Maker(out_dir, num_per_shard=vids_per_shard, force=force_h5, video=True)
 
     filenames_all = sorted(glob.glob(os.path.join(cityscapes_dir, "*", "*.png")))
 
@@ -128,9 +120,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", type=str, help="Directory to save .hdf5 files")
-    parser.add_argument(
-        "--leftImg8bit_sequence_dir", type=str, help="Path to 'leftImg8bit_sequence' "
-    )
+    parser.add_argument("--leftImg8bit_sequence_dir", type=str, help="Path to 'leftImg8bit_sequence' ")
     parser.add_argument("--image_size", type=int, default=128)
     parser.add_argument("--vids_per_shard", type=int, default=100000)
     parser.add_argument("--force_h5", type=eval, default=False)

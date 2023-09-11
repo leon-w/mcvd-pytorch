@@ -15,12 +15,7 @@ module_path = os.path.dirname(__file__)
 def fused_leaky_relu(input, bias, negative_slope=0.2, scale=2 ** 0.5):
     if input.device.type == "cpu":
         rest_dim = [1] * (input.ndim - bias.ndim - 1)
-        return (
-            F.leaky_relu(
-                input + bias.view(1, bias.shape[0], *rest_dim), negative_slope=0.2
-            )
-            * scale
-        )
+        return F.leaky_relu(input + bias.view(1, bias.shape[0], *rest_dim), negative_slope=0.2) * scale
 
     else:
 
@@ -41,9 +36,7 @@ def fused_leaky_relu(input, bias, negative_slope=0.2, scale=2 ** 0.5):
 
                 empty = grad_output.new_empty(0)
 
-                grad_input = fused.fused_bias_act(
-                    grad_output, empty, out, 3, 1, negative_slope, scale
-                )
+                grad_input = fused.fused_bias_act(grad_output, empty, out, 3, 1, negative_slope, scale)
 
                 dim = [0]
 
@@ -73,9 +66,7 @@ def fused_leaky_relu(input, bias, negative_slope=0.2, scale=2 ** 0.5):
             @staticmethod
             def forward(ctx, input, bias, negative_slope, scale):
                 empty = input.new_empty(0)
-                out = fused.fused_bias_act(
-                    input, bias, empty, 3, 0, negative_slope, scale
-                )
+                out = fused.fused_bias_act(input, bias, empty, 3, 0, negative_slope, scale)
                 ctx.save_for_backward(out)
                 ctx.negative_slope = negative_slope
                 ctx.scale = scale
@@ -101,8 +92,6 @@ def fused_leaky_relu(input, bias, negative_slope=0.2, scale=2 ** 0.5):
                 self.scale = scale
 
             def forward(self, input):
-                return fused_leaky_relu(
-                    input, self.bias, self.negative_slope, self.scale
-                )
+                return fused_leaky_relu(input, self.bias, self.negative_slope, self.scale)
 
         return FusedLeakyReLUFunction.apply(input, bias, negative_slope, scale)
