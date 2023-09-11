@@ -9,17 +9,16 @@ import torch
 
 from torch.utils.data import Dataset
 
-default_opener = lambda p_: h5py.File(p_, 'r')
+default_opener = lambda p_: h5py.File(p_, "r")
 
 
 class HDF5Dataset(Dataset):
-
     @staticmethod
     def _get_num_in_shard(shard_p, opener=default_opener):
-        print(f'\rh5: Opening {shard_p}... ', end='')
+        print(f"\rh5: Opening {shard_p}... ", end="")
         try:
             with opener(shard_p) as f:
-                num_per_shard = len(f['len'].keys())
+                num_per_shard = len(f["len"].keys())
         except:
             print(f"h5: Could not open {shard_p}!")
             num_per_shard = -1
@@ -42,35 +41,60 @@ class HDF5Dataset(Dataset):
             shard_lengths.append(HDF5Dataset._get_num_in_shard(p, opener))
         return shard_lengths
 
-    def __init__(self, data_path,   # hdf5 file, or directory of hdf5s
-                 shuffle_shards=False,
-                 opener=default_opener,
-                 seed=29):
+    def __init__(
+        self,
+        data_path,  # hdf5 file, or directory of hdf5s
+        shuffle_shards=False,
+        opener=default_opener,
+        seed=29,
+    ):
         self.data_path = data_path
         self.shuffle_shards = shuffle_shards
         self.opener = opener
         self.seed = seed
 
         # If `data_path` is an hdf5 file
-        if os.path.splitext(self.data_path)[-1] == '.hdf5' or os.path.splitext(self.data_path)[-1] == '.h5':
+        if (
+            os.path.splitext(self.data_path)[-1] == ".hdf5"
+            or os.path.splitext(self.data_path)[-1] == ".h5"
+        ):
             self.data_dir = os.path.dirname(self.data_path)
             self.shard_paths = [self.data_path]
         # Else, if `data_path` is a directory of hdf5s
         else:
             self.data_dir = self.data_path
-            self.shard_paths = sorted(glob.glob(os.path.join(self.data_dir, '*.hdf5')) + glob.glob(os.path.join(self.data_dir, '*.h5')))
+            self.shard_paths = sorted(
+                glob.glob(os.path.join(self.data_dir, "*.hdf5"))
+                + glob.glob(os.path.join(self.data_dir, "*.h5"))
+            )
 
-        assert len(self.shard_paths) > 0, "h5: Directory does not have any .hdf5 files! Dir: " + self.data_dir
+        assert len(self.shard_paths) > 0, (
+            "h5: Directory does not have any .hdf5 files! Dir: " + self.data_dir
+        )
 
-        self.shard_lengths = HDF5Dataset.check_shard_lengths(self.shard_paths, self.opener)
+        self.shard_lengths = HDF5Dataset.check_shard_lengths(
+            self.shard_paths, self.opener
+        )
         self.num_per_shard = self.shard_lengths[0]
         self.total_num = sum(self.shard_lengths)
 
-        assert len(self.shard_paths) > 0, "h5: Could not find .hdf5 files! Dir: " + self.data_dir + " ; len(self.shard_paths) = " + str(len(self.shard_paths))
+        assert len(self.shard_paths) > 0, (
+            "h5: Could not find .hdf5 files! Dir: "
+            + self.data_dir
+            + " ; len(self.shard_paths) = "
+            + str(len(self.shard_paths))
+        )
 
         self.num_of_shards = len(self.shard_paths)
 
-        print("h5: paths", len(self.shard_paths), "; shard_lengths", self.shard_lengths, "; total", self.total_num)
+        print(
+            "h5: paths",
+            len(self.shard_paths),
+            "; shard_lengths",
+            self.shard_lengths,
+            "; total",
+            self.total_num,
+        )
 
         # Shuffle shards
         if self.shuffle_shards:
@@ -94,9 +118,17 @@ class HDF5Dataset(Dataset):
         return data
 
 
-class HDF5Maker():
-
-    def __init__(self, out_path, num_per_shard=100000, max_shards=None, name=None, name_fmt='shard_{:04d}.hdf5', force=False, video=False):
+class HDF5Maker:
+    def __init__(
+        self,
+        out_path,
+        num_per_shard=100000,
+        max_shards=None,
+        name=None,
+        name_fmt="shard_{:04d}.hdf5",
+        force=False,
+        video=False,
+    ):
 
         # `out_path` could be an hdf5 file, or a directory of hdf5s
         # If `out_path` is an hdf5 file, then `name` will be its basename
@@ -104,19 +136,22 @@ class HDF5Maker():
 
         self.out_path = out_path
         self.num_per_shard = num_per_shard
-        self.max_shards= max_shards
+        self.max_shards = max_shards
         self.name = name
         self.name_fmt = name_fmt
         self.force = force
         self.video = video
 
         # If `out_path` is an hdf5 file
-        if os.path.splitext(self.out_path)[-1] == '.hdf5' or os.path.splitext(self.out_path)[-1] == '.h5':
+        if (
+            os.path.splitext(self.out_path)[-1] == ".hdf5"
+            or os.path.splitext(self.out_path)[-1] == ".h5"
+        ):
             # If it exists, check if it should be deleted
             if os.path.isfile(self.out_path):
                 if not self.force:
-                    raise ValueError('{} already exists.'.format(self.out_path))
-                print('Removing {}...'.format(self.out_path))
+                    raise ValueError("{} already exists.".format(self.out_path))
+                print("Removing {}...".format(self.out_path))
                 os.remove(self.out_path)
             # Make the directory if it does not exist
             self.out_dir = os.path.dirname(self.out_path)
@@ -130,8 +165,8 @@ class HDF5Maker():
             if os.path.isdir(self.out_dir):
                 # Check if it should be deleted
                 if not self.force:
-                    raise ValueError('{} already exists.'.format(self.out_dir))
-                print('Removing *.hdf5 files from {}...'.format(self.out_dir))
+                    raise ValueError("{} already exists.".format(self.out_dir))
+                print("Removing *.hdf5 files from {}...".format(self.out_dir))
                 files = glob.glob(os.path.join(self.out_dir, "*.hdf5"))
                 files += glob.glob(os.path.join(self.out_dir, "*.h5"))
                 for file in files:
@@ -159,15 +194,20 @@ class HDF5Maker():
         self.shard_number += 1
 
         if self.max_shards is not None and self.shard_number == self.max_shards + 1:
-            print('Created {} shards, ENDING.'.format(self.max_shards))
+            print("Created {} shards, ENDING.".format(self.max_shards))
             return
 
-        self.shard_p = os.path.join(self.out_dir, self.name_fmt.format(self.shard_number) if self.name is None else self.name)
-        assert not os.path.exists(self.shard_p), 'Record already exists! {}'.format(self.shard_p)
+        self.shard_p = os.path.join(
+            self.out_dir,
+            self.name_fmt.format(self.shard_number) if self.name is None else self.name,
+        )
+        assert not os.path.exists(self.shard_p), "Record already exists! {}".format(
+            self.shard_p
+        )
         self.shard_paths.append(self.shard_p)
 
-        print('Creating shard # {}: {}...'.format(self.shard_number, self.shard_p))
-        self.writer = h5py.File(self.shard_p, 'w')
+        print("Creating shard # {}: {}...".format(self.shard_number, self.shard_p))
+        self.writer = h5py.File(self.shard_p, "w")
         if self.video:
             self.create_video_groups()
 
@@ -177,14 +217,16 @@ class HDF5Maker():
         pass
 
     def create_video_groups(self):
-        self.writer.create_group('len')
-        self.writer.create_group('videos')
+        self.writer.create_group("len")
+        self.writer.create_group("videos")
 
     def add_video_data(self, data, dtype=None):
-        self.writer['len'].create_dataset(str(self.count), data=len(data))
+        self.writer["len"].create_dataset(str(self.count), data=len(data))
         self.writer.create_group(str(self.count))
         for i, frame in enumerate(data):
-            self.writer[str(self.count)].create_dataset(str(i), data=frame, dtype=dtype, compression="lzf")
+            self.writer[str(self.count)].create_dataset(
+                str(i), data=frame, dtype=dtype, compression="lzf"
+            )
 
     def add_data(self, data, dtype=None, return_curr_count=False):
 
@@ -192,7 +234,9 @@ class HDF5Maker():
             self.add_video_data(data, dtype)
         else:
             # self.writer.create_dataset(str(self.count), data=data, compression="gzip", compression_opts=9)
-            self.writer.create_dataset(str(self.count), data=data, dtype=dtype, compression="lzf")
+            self.writer.create_dataset(
+                str(self.count), data=data, dtype=dtype, compression="lzf"
+            )
 
         curr_count = self.count
         self.count += 1
@@ -211,7 +255,7 @@ class HDF5Maker():
 if __name__ == "__main__":
 
     # Make
-    h5_maker = HDF5Maker('EXPERIMENTS/h5', num_per_shard=10, force=True)
+    h5_maker = HDF5Maker("EXPERIMENTS/h5", num_per_shard=10, force=True)
 
     a = [torch.zeros(12, 255, 52, 52)] * 12
     for data in a:
@@ -220,7 +264,7 @@ if __name__ == "__main__":
     h5_maker.close()
 
     # Read
-    h5_ds = HDF5Dataset('EXPERIMENTS/h5')
+    h5_ds = HDF5Dataset("EXPERIMENTS/h5")
     data = h5_ds[0]
 
     assert torch.all(data == a[0])

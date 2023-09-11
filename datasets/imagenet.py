@@ -13,27 +13,39 @@ from torchvision import transforms
 # classes : https://gist.github.com/aaronpolhamus/964a4411c0906315deb9f4a3723aac57
 
 
-def ImageNetDataLoaders(h5_path, batch_size, classes=[], imsize=64,
-                        shuffle=True, workers=10, distributed=False):
+def ImageNetDataLoaders(
+    h5_path,
+    batch_size,
+    classes=[],
+    imsize=64,
+    shuffle=True,
+    workers=10,
+    distributed=False,
+):
 
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(
+        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+    )
 
-    train_transform = transforms.Compose([
-                                        transforms.RandomResizedCrop(224 if imsize < 256 else 256),
-                                        transforms.Resize(imsize),
-                                        transforms.RandomHorizontalFlip(),
-                                        transforms.ToTensor(),
-                                        normalize,
-                                        ])
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(224 if imsize < 256 else 256),
+            transforms.Resize(imsize),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
 
-    val_transform = transforms.Compose([
-                                        transforms.Resize(256),
-                                        transforms.CenterCrop(224 if im_size <= 224 else 256),
-                                        transforms.Resize(imsize),
-                                        transforms.ToTensor(),
-                                        normalize,
-                                        ])
+    val_transform = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224 if im_size <= 224 else 256),
+            transforms.Resize(imsize),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
 
     train_ds = ImageNetDataset(h5_path, "train", train_transform, classes)
     val_ds = ImageNetDataset(h5_path, "val", val_transform, classes)
@@ -45,40 +57,71 @@ def ImageNetDataLoaders(h5_path, batch_size, classes=[], imsize=64,
         sampler = None
 
     train_dl = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=shuffle,
-        num_workers=workers, pin_memory=True, sampler=sampler, drop_last=True)
+        train_ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=workers,
+        pin_memory=True,
+        sampler=sampler,
+        drop_last=True,
+    )
 
     val_dl = DataLoader(
-        val_ds, batch_size=batch_size, shuffle=False,
-        num_workers=workers, pin_memory=True, drop_last=True)
+        val_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=workers,
+        pin_memory=True,
+        drop_last=True,
+    )
 
     return train_dl, val_dl
 
 
 class ImageNetDataset(Dataset):
-    def __init__(self, h5_path, split, transform=transforms.Compose([transforms.ToTensor()]), classes=[]):
-        self.h5_path = h5_path     # Path to ilsvrc2012.hdf5
+    def __init__(
+        self,
+        h5_path,
+        split,
+        transform=transforms.Compose([transforms.ToTensor()]),
+        classes=[],
+    ):
+        self.h5_path = h5_path  # Path to ilsvrc2012.hdf5
         self.split = split
         self.transform = transform
         self.classes = classes
 
-        assert os.path.exists(self.h5_path), f"ImageNet h5 file path does not exist! Given: {self.h5_path}"
-        assert self.split in ["train", "val", "test"], f"split must be 'train' or 'val' or 'test'! Given: {self.split}"
+        assert os.path.exists(
+            self.h5_path
+        ), f"ImageNet h5 file path does not exist! Given: {self.h5_path}"
+        assert self.split in [
+            "train",
+            "val",
+            "test",
+        ], f"split must be 'train' or 'val' or 'test'! Given: {self.split}"
 
         self.N_TRAIN = 1281167
         self.N_VAL = 50000
         self.N_TEST = 100000
 
-        if self.split in ['train', 'val']:
+        if self.split in ["train", "val"]:
             if len(self.classes) > 0:
-                class_idxs_dict = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "imagenet.json")))[self.split]
-                self.class_idxs = sorted([i for c in self.classes for i in class_idxs_dict[str(c)]])
+                class_idxs_dict = json.load(
+                    open(
+                        os.path.join(
+                            os.path.dirname(os.path.abspath(__file__)), "imagenet.json"
+                        )
+                    )
+                )[self.split]
+                self.class_idxs = sorted(
+                    [i for c in self.classes for i in class_idxs_dict[str(c)]]
+                )
                 del class_idxs_dict
                 self.n = len(self.class_idxs)
             else:
-                if self.split == 'train':
-                    self.n  = self.N_TRAIN
-                elif self.split == 'val':
+                if self.split == "train":
+                    self.n = self.N_TRAIN
+                elif self.split == "val":
                     self.n = self.N_VAL
         else:
             self.n = self.N_TEST
@@ -93,22 +136,28 @@ class ImageNetDataset(Dataset):
     def __getitem__(self, idx):
 
         # Get class idx
-        if len(self.classes) > 0 and self.split in ['train', 'val']:
+        if len(self.classes) > 0 and self.split in ["train", "val"]:
             idx = self.class_idxs[idx]
 
         # Correct idx
-        if self.split == 'val':
+        if self.split == "val":
             idx += self.N_TRAIN
-        elif self.split == 'test':
+        elif self.split == "test":
             idx += self.N_TRAIN + self.N_VAL
 
         # Read h5 file
         if self.h5_data is None:
-            self.h5_data = h5py.File(self.h5_path, mode='r')
+            self.h5_data = h5py.File(self.h5_path, mode="r")
 
         # Extract info
-        image = self.transform(Image.open(io.BytesIO(self.h5_data['encoded_images'][idx])).convert('RGB'))
-        target = torch.from_numpy(self.h5_data['targets'][idx])[0].long() if self.split != 'test' else None
+        image = self.transform(
+            Image.open(io.BytesIO(self.h5_data["encoded_images"][idx])).convert("RGB")
+        )
+        target = (
+            torch.from_numpy(self.h5_data["targets"][idx])[0].long()
+            if self.split != "test"
+            else None
+        )
 
         return image, target
 

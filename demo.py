@@ -26,7 +26,9 @@ scorenet, config = load_model(ckpt_path, device)
 sampler = get_sampler(config)
 
 
-dataset, test_dataset = get_dataset(DATA_PATH, config, video_frames_pred=config.data.num_frames)
+dataset, test_dataset = get_dataset(
+    DATA_PATH, config, video_frames_pred=config.data.num_frames
+)
 
 torch.manual_seed(0)
 
@@ -52,7 +54,9 @@ real, cond, cond_mask = conditioning_fn(
 
 
 init = init_samples(len(real), config)
-pred = sampler(init, scorenet, cond=cond, cond_mask=cond_mask, subsample=100, verbose=True)
+pred = sampler(
+    init, scorenet, cond=cond, cond_mask=cond_mask, subsample=100, verbose=True
+)
 
 print(pred.shape)
 # frames = rearrange(pred, "1 d h w -> h (d w)")

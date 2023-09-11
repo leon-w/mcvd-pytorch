@@ -45,7 +45,9 @@ try:
     from tqdm import tqdm
 except ImportError:
     # If not tqdm is not available, provide a mock version of it
-    def tqdm(x): return x
+    def tqdm(x):
+        return x
+
 
 from .inception import InceptionV3
 
@@ -78,18 +80,22 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     sigma1 = np.atleast_2d(sigma1)
     sigma2 = np.atleast_2d(sigma2)
 
-    assert mu1.shape == mu2.shape, \
-        'Training and test mean vectors have different lengths'
-    assert sigma1.shape == sigma2.shape, \
-        'Training and test covariances have different dimensions'
+    assert (
+        mu1.shape == mu2.shape
+    ), "Training and test mean vectors have different lengths"
+    assert (
+        sigma1.shape == sigma2.shape
+    ), "Training and test covariances have different dimensions"
 
     diff = mu1 - mu2
 
     # Product might be almost singular
     covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
     if not np.isfinite(covmean).all():
-        msg = ('FID: fid calculation produces singular product; '
-               'adding %s to diagonal of cov estimates') % eps
+        msg = (
+            "FID: fid calculation produces singular product; "
+            "adding %s to diagonal of cov estimates"
+        ) % eps
         print(msg)
         offset = np.eye(sigma1.shape[0]) * eps
         covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
@@ -98,17 +104,17 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     if np.iscomplexobj(covmean):
         if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
             m = np.max(np.abs(covmean.imag))
-            raise ValueError('Imaginary component {}'.format(m))
+            raise ValueError("Imaginary component {}".format(m))
         covmean = covmean.real
 
     tr_covmean = np.trace(covmean)
 
-    return float(diff.dot(diff) + np.trace(sigma1) +
-            np.trace(sigma2) - 2 * tr_covmean)
+    return float(diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean)
 
 
-def calculate_activations(images, model, batch_size=50, dims=2048,
-                          device=torch.device('cpu'), verbose=False):
+def calculate_activations(
+    images, model, batch_size=50, dims=2048, device=torch.device("cpu"), verbose=False
+):
     """Calculates the activations of the pool_3 layer for all images.
 
     Params:
@@ -131,16 +137,23 @@ def calculate_activations(images, model, batch_size=50, dims=2048,
     model.eval()
 
     if batch_size > len(images):
-        print(('FID: Warning: batch size is bigger than the data size. '
-               'Setting batch size to data size'))
+        print(
+            (
+                "FID: Warning: batch size is bigger than the data size. "
+                "Setting batch size to data size"
+            )
+        )
         batch_size = len(images)
 
     pred_arr = torch.empty((len(images), dims))
 
-    for i in tqdm(range(0, len(images), batch_size), leave=False, desc='InceptionV3'):
+    for i in tqdm(range(0, len(images), batch_size), leave=False, desc="InceptionV3"):
         if verbose:
-            print('\rFID: Propagating batch %d/%d' % (i + 1, n_batches),
-                  end='', flush=True)
+            print(
+                "\rFID: Propagating batch %d/%d" % (i + 1, n_batches),
+                end="",
+                flush=True,
+            )
         start = i
         end = i + batch_size
 
@@ -162,13 +175,14 @@ def calculate_activations(images, model, batch_size=50, dims=2048,
         pred_arr[start:end] = pred.cpu().reshape(pred.size(0), -1)
 
     if verbose:
-        print('FID: activations done')
+        print("FID: activations done")
 
     return pred_arr
 
 
-def calculate_activation_statistics(images, model, batch_size=50,
-                                    dims=2048, device=torch.device('cpu'), verbose=False):
+def calculate_activation_statistics(
+    images, model, batch_size=50, dims=2048, device=torch.device("cpu"), verbose=False
+):
     """Calculation of the statistics used by the FID.
     Params:
     -- images      : Tensor of images (n, 3, H, W), float values in [0, 1]
@@ -186,23 +200,29 @@ def calculate_activation_statistics(images, model, batch_size=50,
     -- sigma : The covariance matrix of the activations of the pool_3 layer of
                the inception model.
     """
-    act = calculate_activations(images, model, batch_size, dims, device, verbose).data.numpy()
+    act = calculate_activations(
+        images, model, batch_size, dims, device, verbose
+    ).data.numpy()
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
 
-def _compute_statistics_of_path_or_samples(path_or_samples, model, batch_size, dims, device):
+def _compute_statistics_of_path_or_samples(
+    path_or_samples, model, batch_size, dims, device
+):
     if isinstance(path_or_samples, str):
-        assert path_or_samples.endswith('.npz'), "path is not .npz!"
+        assert path_or_samples.endswith(".npz"), "path is not .npz!"
         f = np.load(path_or_samples)
-        m, s = f['mu'][:], f['sigma'][:]
+        m, s = f["mu"][:], f["sigma"][:]
         f.close()
     else:
         assert isinstance(path_or_samples, torch.Tensor), "sample is not tensor!"
         # path = pathlib.Path(path)
         # files = list(path.glob('*.jpg')) + list(path.glob('*.png'))
-        m, s = calculate_activation_statistics(path_or_samples, model, batch_size, dims, device)
+        m, s = calculate_activation_statistics(
+            path_or_samples, model, batch_size, dims, device
+        )
     return m, s
 
 
@@ -217,7 +237,9 @@ def calculate_precision_recall_part(feat_r, feat_g, k=3, batch_size=10000):
     # Precision
     NNk_r = []
     for feat_r_batch in feat_r.split(batch_size):
-        NNk_r.append(calc_cdist(feat_r_batch, feat_r, batch_size).kthvalue(k+1).values)
+        NNk_r.append(
+            calc_cdist(feat_r_batch, feat_r, batch_size).kthvalue(k + 1).values
+        )
     NNk_r = torch.cat(NNk_r)
     precision = []
     for feat_g_batch in feat_g.split(batch_size):
@@ -227,7 +249,9 @@ def calculate_precision_recall_part(feat_r, feat_g, k=3, batch_size=10000):
     # Recall
     NNk_g = []
     for feat_g_batch in feat_g.split(batch_size):
-        NNk_g.append(calc_cdist(feat_g_batch, feat_g, batch_size).kthvalue(k+1).values)
+        NNk_g.append(
+            calc_cdist(feat_g_batch, feat_g, batch_size).kthvalue(k + 1).values
+        )
     NNk_g = torch.cat(NNk_g)
     recall = []
     for feat_r_batch in feat_r.split(batch_size):
@@ -248,8 +272,8 @@ def calc_cdist_full(feat1, feat2, batch_size=10000):
 
 
 def calculate_precision_recall_full(feat_r, feat_g, k=3, batch_size=10000):
-    NNk_r = calc_cdist_full(feat_r, feat_r, batch_size).kthvalue(k+1).values
-    NNk_g = calc_cdist_full(feat_g, feat_g, batch_size).kthvalue(k+1).values
+    NNk_r = calc_cdist_full(feat_r, feat_r, batch_size).kthvalue(k + 1).values
+    NNk_g = calc_cdist_full(feat_g, feat_g, batch_size).kthvalue(k + 1).values
     dist_g_r = calc_cdist_full(feat_g, feat_r, batch_size)
     dist_r_g = dist_g_r.T
     # Precision
@@ -259,8 +283,15 @@ def calculate_precision_recall_full(feat_r, feat_g, k=3, batch_size=10000):
     return precision, recall
 
 
-def calculate_precision_recall(feat_r, feat_g, device=torch.device('cuda'), k=3,
-                               batch_size=10000, save_cpu_ram=False, **kwargs):
+def calculate_precision_recall(
+    feat_r,
+    feat_g,
+    device=torch.device("cuda"),
+    k=3,
+    batch_size=10000,
+    save_cpu_ram=False,
+    **kwargs,
+):
     feat_r = feat_r.to(device)
     feat_g = feat_g.to(device)
     if save_cpu_ram:
@@ -271,7 +302,9 @@ def calculate_precision_recall(feat_r, feat_g, device=torch.device('cuda'), k=3,
 
 def get_activations(path_or_samples, model, batch_size, dims, device):
     if isinstance(path_or_samples, str):
-        assert path_or_samples.endswith('.pt') or path_or_samples.endswith('.pth'), "path is not .pt or .pth!"
+        assert path_or_samples.endswith(".pt") or path_or_samples.endswith(
+            ".pth"
+        ), "path is not .pt or .pth!"
         act = torch.load(path_or_samples)
     else:
         assert isinstance(path_or_samples, torch.Tensor), "sample is not tensor!"
@@ -279,8 +312,15 @@ def get_activations(path_or_samples, model, batch_size, dims, device):
     return act
 
 
-def get_fid_PR(real_path_or_samples, fake_path_or_samples, device=torch.device('cuda'),
-               batch_size=50, dims=2048, k=3, save_feats_path=None):
+def get_fid_PR(
+    real_path_or_samples,
+    fake_path_or_samples,
+    device=torch.device("cuda"),
+    batch_size=50,
+    dims=2048,
+    k=3,
+    save_feats_path=None,
+):
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx]).to(device)
     # Real
@@ -299,7 +339,13 @@ def get_fid_PR(real_path_or_samples, fake_path_or_samples, device=torch.device('
     return fid_value, precision, recall
 
 
-def get_PR(real_path_or_samples, fake_path_or_samples, device=torch.device('cuda'), batch_size=50, dims=2048):
+def get_PR(
+    real_path_or_samples,
+    fake_path_or_samples,
+    device=torch.device("cuda"),
+    batch_size=50,
+    dims=2048,
+):
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx]).to(device)
     # Real
@@ -311,31 +357,40 @@ def get_PR(real_path_or_samples, fake_path_or_samples, device=torch.device('cuda
     return precision, recall
 
 
-
-def get_fid(path_or_samples1, path_or_samples2, device=torch.device('cuda'), batch_size=50, dims=2048):
+def get_fid(
+    path_or_samples1,
+    path_or_samples2,
+    device=torch.device("cuda"),
+    batch_size=50,
+    dims=2048,
+):
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx]).to(device)
-    m1, s1 = _compute_statistics_of_path_or_samples(path_or_samples1, model, batch_size, dims, device)
-    m2, s2 = _compute_statistics_of_path_or_samples(path_or_samples2, model, batch_size, dims, device)
+    m1, s1 = _compute_statistics_of_path_or_samples(
+        path_or_samples1, model, batch_size, dims, device
+    )
+    m2, s2 = _compute_statistics_of_path_or_samples(
+        path_or_samples2, model, batch_size, dims, device
+    )
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
     return fid_value
 
 
 STATS_LINKS = {
-    'CIFAR10': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_cifar10_train.npz',
-    'LSUN': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_lsun_train.npz',
-    'CELEBA': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_celeba.npz', # cropped CelebA 64x64
-    'SVHN': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_svhn_train.npz',
-    'IMAGENET_TRAIN': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_imagenet_train.npz',
-    'IMAGENET_VALID': 'http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_imagenet_valid.npz',
+    "CIFAR10": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_cifar10_train.npz",
+    "LSUN": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_lsun_train.npz",
+    "CELEBA": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_celeba.npz",  # cropped CelebA 64x64
+    "SVHN": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_svhn_train.npz",
+    "IMAGENET_TRAIN": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_imagenet_train.npz",
+    "IMAGENET_VALID": "http://bioinf.jku.at/research/ttur/ttur_stats/fid_stats_imagenet_valid.npz",
 }
 
 FEATS_PATHS = {
-    'CIFAR10': 'cifar10-inception-v3-compat-features-2048.pt',
-    'LSUN': 'lsun-inception-v3-compat-features-2048.pt',
-    'CELEBA': 'celeba-inception-v3-compat-features-2048.pt', # cropped CelebA 64x64
-    'SVHN': 'svhn-inception-v3-compat-features-2048.pt',
-    'IMAGENET64': 'imagenet64-inception-v3-compat-features-2048.pt',
+    "CIFAR10": "cifar10-inception-v3-compat-features-2048.pt",
+    "LSUN": "lsun-inception-v3-compat-features-2048.pt",
+    "CELEBA": "celeba-inception-v3-compat-features-2048.pt",  # cropped CelebA 64x64
+    "SVHN": "svhn-inception-v3-compat-features-2048.pt",
+    "IMAGENET64": "imagenet64-inception-v3-compat-features-2048.pt",
 }
 
 
@@ -344,7 +399,9 @@ def get_stats_path(dataset, stats_dir, download=True):
     stats_npz_path = os.path.join(stats_dir, os.path.basename(STATS_LINKS[dataset]))
     if not os.path.exists(stats_npz_path):
         if not download:
-            raise FileNotFoundError(f"Stats file not found! Required: {stats_npz_path}. Please download by setting '--stats_download'.")
+            raise FileNotFoundError(
+                f"Stats file not found! Required: {stats_npz_path}. Please download by setting '--stats_download'."
+            )
         else:
             urllib.request.urlretrieve(STATS_LINKS[dataset], stats_npz_path)
     return stats_npz_path
