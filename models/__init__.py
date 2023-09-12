@@ -2,19 +2,19 @@
 # DDPM: s = -1/sqrt(1 - alpha) * z
 # All `scorenet` models return z, not s!
 
-import torch
 import logging
-import numpy as np
-
 from functools import partial
+
+import numpy as np
+import torch
 from scipy.stats import hmean
 from torch.distributions.gamma import Gamma
 from tqdm import tqdm
+
 from . import pndm
 
 
 def get_sigmas(config):
-
     T = getattr(config.model, "num_classes")
 
     if config.model.sigma_dist == "geometric":
@@ -48,7 +48,6 @@ def FPNDM_sampler(
     gamma=False,
     **kwargs,
 ):
-
     net = scorenet.module if hasattr(scorenet, "module") else scorenet
 
     # schedule = getattr(config.model, 'sigma_dist', 'linear')
@@ -91,7 +90,6 @@ def FPNDM_sampler(
     L = len(steps)
     ets = []
     for i, step in enumerate(steps):
-
         t_ = (steps[i] * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
         t_next = (steps_next[i] * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
         # print(alphas_next[i])
@@ -132,7 +130,6 @@ def ddim_sampler(
     gamma=False,
     **kwargs,
 ):
-
     net = scorenet.module if hasattr(scorenet, "module") else scorenet
 
     # schedule = getattr(config.model, 'sigma_dist', 'linear')
@@ -171,7 +168,6 @@ def ddim_sampler(
 
     L = len(steps)
     for i, step in enumerate(steps):
-
         if step < t_min * len(alphas):  # otherwise, wait until it happens
             continue
 
@@ -207,7 +203,6 @@ def ddim_sampler(
             images.append(x_mod.to("cpu"))
 
         if i == 0 or (i + 1) % max(L // 10, 1) == 0:
-
             if verbose or log:
                 grad = -1 / (1 - c_alpha).sqrt() * grad
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
@@ -272,9 +267,7 @@ def ddpm_sampler(
     clip_before=True,
     t_min=-1,
     gamma=False,
-    **kwargs,
 ):
-
     net = scorenet.module if hasattr(scorenet, "module") else scorenet
     # schedule = getattr(config.model, 'sigma_dist', 'linear')
     # if schedule == 'linear':
@@ -332,7 +325,6 @@ def ddpm_sampler(
 
     L = len(steps)
     for i, step in enumerate(steps):
-
         if step < t_min * len(alphas):  # wait until it happens
             continue
 
@@ -368,7 +360,6 @@ def ddpm_sampler(
             images.append(x_mod.to("cpu"))
 
         if i == 0 or (i + 1) % max(L // 10, 1) == 0:
-
             if verbose or log:
                 grad = -1 / (1 - c_alpha).sqrt() * grad
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
@@ -479,7 +470,6 @@ def anneal_Langevin_dynamics(
         labels = (torch.ones(x_mod.shape[0], device=x_mod.device) * c).long()
         step_size = step_lr * (sigma / sigmas[-1]) ** 2
         for s in range(n_steps_each):
-
             grad = scorenet(x_mod, labels)
             if harm_mean:
                 grad = grad * sigmas_hmean / sigma
@@ -495,7 +485,7 @@ def anneal_Langevin_dynamics(
             image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
             noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
             snr = (step_size / 2.0).sqrt() * grad_norm / noise_norm
-            grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * sigma ** 2
+            grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * sigma**2
 
             if not final_only:
                 images.append(x_mod.to("cpu"))
@@ -579,7 +569,6 @@ def sparse_anneal_Langevin_dynamics(
         labels = (torch.ones(x_mod.shape[0], device=x_mod.device) * c).long()
         step_size = step_lr * (sigma / sigmas[-1]) ** 2
         for s in range(n_steps_each):
-
             grad = scorenet(x_mod, labels)
             if harm_mean:
                 grad = grad * sigmas_hmean / sigma
@@ -599,7 +588,7 @@ def sparse_anneal_Langevin_dynamics(
             image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
             noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
             snr = (step_size / 2.0).sqrt() * grad_norm / noise_norm
-            grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * sigma ** 2
+            grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * sigma**2
 
             if not final_only:
                 images.append(x_mod_sparse.to("cpu"))
@@ -693,7 +682,6 @@ def anneal_Langevin_dynamics_consistent(
     scorenet = partial(scorenet, cond=cond)
 
     for c in range(consistent_L):
-
         c_sigma = next_sigma
         used_sigmas = (
             torch.tensor([c_sigma] * len(x_mod))
@@ -712,7 +700,6 @@ def anneal_Langevin_dynamics_consistent(
 
         last_step = c + 1 == consistent_L
         if last_step:
-
             if denoise:
                 last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
                 x_mod = x_mod - sigmas[-1] * scorenet(x_mod, last_noise)
@@ -732,13 +719,12 @@ def anneal_Langevin_dynamics_consistent(
         x_mod += beta * next_sigma * noise
 
         if c % n_steps_each == 0:
-
             if verbose or log:
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
                 image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
                 noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
                 snr = eta * gamma * c_sigma / beta * grad_norm / noise_norm
-                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma**2
 
             if verbose:
                 print(
@@ -822,7 +808,6 @@ def sparse_anneal_Langevin_dynamics_consistent(
     scorenet = partial(scorenet, cond=cond)
 
     for c in range(consistent_L):
-
         c_sigma = next_sigma
         used_sigmas = (
             torch.tensor([c_sigma] * len(x_mod))
@@ -835,13 +820,12 @@ def sparse_anneal_Langevin_dynamics_consistent(
         if harm_mean:
             grad = grad * sigmas_hmean / used_sigmas
 
-        x_mod += eta * c_sigma ** 2 * grad
+        x_mod += eta * c_sigma**2 * grad
         if not final_only:
             images.append(x_mod.to("cpu"))
 
         last_step = c + 1 == consistent_L
         if last_step:
-
             if denoise:
                 last_noise = ((len(sigmas) - 1) * torch.ones(x_mod.shape[0], device=x_mod.device)).long()
                 x_mod = x_mod + sigmas[-1] * scorenet(x_mod, last_noise)
@@ -863,13 +847,12 @@ def sparse_anneal_Langevin_dynamics_consistent(
         x_mod_sparse += next_sigma * beta * sparsity * noise
 
         if c % n_steps_each == 0:
-
             if verbose or log:
                 grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
                 image_norm = torch.norm(x_mod.reshape(x_mod.shape[0], -1), dim=-1).mean()
                 noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
                 snr = eta * gamma * c_sigma / beta * grad_norm / noise_norm
-                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma ** 2
+                grad_mean_norm = torch.norm(grad.mean(dim=0).reshape(-1)) ** 2 * c_sigma**2
 
             if verbose:
                 print(

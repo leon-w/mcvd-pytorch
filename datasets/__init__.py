@@ -1,22 +1,22 @@
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import torchvision.transforms as transforms
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10, LSUN
-from torch.utils.data import DataLoader
 
+from datasets.bair import BAIRDataset
 from datasets.celeba import CelebA
+from datasets.cityscapes import CityscapesDataset
+from datasets.event import EventDataset
 
 # from datasets.ffhq import FFHQ
 from datasets.imagenet import ImageNetDataset
+from datasets.kth import KTHDataset
 from datasets.moving_mnist import MovingMNIST
 from datasets.stochastic_moving_mnist import StochasticMovingMNIST
-from datasets.bair import BAIRDataset
-from datasets.kth import KTHDataset
-from datasets.cityscapes import CityscapesDataset
 from datasets.ucf101 import UCF101Dataset
-from torch.utils.data import Subset
-
 
 DATASETS = [
     "CIFAR10",
@@ -30,6 +30,7 @@ DATASETS = [
     "KTH",
     "CITYSCAPES",
     "UCF101",
+    "EVENT",
 ]
 
 
@@ -52,7 +53,6 @@ def get_dataloaders(data_path, config):
 
 
 def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
-
     assert (
         config.data.dataset.upper() in DATASETS
     ), f"datasets/__init__.py: dataset can only be in {DATASETS}! Given {config.data.dataset.upper()}"
@@ -70,6 +70,11 @@ def get_dataset(data_path, config, video_frames_pred=0, start_at=0):
             ]
         )
         test_transform = transforms.Compose([transforms.Resize(config.data.image_size), transforms.ToTensor()])
+
+    if config.data.dataset.upper() == "EVENT":
+        # TODO: add proper arguments
+        dataset = EventDataset()
+        test_dataset = EventDataset()
 
     if config.data.dataset.upper() == "CIFAR10":
         dataset = CIFAR10(data_path, train=True, download=True, transform=tran_transform)
