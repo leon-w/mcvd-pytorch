@@ -3,20 +3,21 @@ import copy
 import datetime
 import glob
 import logging
-import numpy as np
 import os
 import shutil
 import sys
-import torch
-import traceback
 import time
+import traceback
+
+import numpy as np
+import torch
 import yaml
+
+from runners import *
 
 # import torch.utils.tensorboard as tb
 # from hanging_threads import start_monitoring
 # start_monitoring(seconds_frozen=10, test_interval=100)
-
-from runners import *
 
 
 def parse_args_and_config():
@@ -236,6 +237,10 @@ def parse_args_and_config():
 
     # tb_path = os.path.join(args.exp, 'tensorboard', args.doc)
 
+    # allow resume switch to be active even if we cant resume
+    if args.resume_training and not os.path.exists(os.path.join(args.log_path, "checkpoint.pt")):
+        args.resume_training = False
+
     if not args.test and not args.sample and not args.video_gen and not args.fast_fid:
         if not args.resume_training:
             if os.path.exists(args.log_path):
@@ -299,7 +304,6 @@ def parse_args_and_config():
         logger.setLevel(level)
 
         if args.sample:
-
             if args.ckpt is not None:
                 new_config.sampling.ckpt_id = args.ckpt
             if new_config.sampling.ckpt_id == 0:
@@ -346,7 +350,6 @@ def parse_args_and_config():
                 yaml.dump(vars(args), f, default_flow_style=False)
 
         elif args.video_gen:
-
             new_config.sampling.ckpt_id = args.ckpt or new_config.sampling.ckpt_id
             args.final_only = True
 
@@ -382,7 +385,6 @@ def parse_args_and_config():
                 yaml.dump(vars(args), f, default_flow_style=False)
 
         elif args.fast_fid:
-
             new_config.fast_fid.begin_ckpt = args.ckpt or new_config.fast_fid.begin_ckpt
             new_config.fast_fid.end_ckpt = args.end_ckpt or new_config.fast_fid.end_ckpt
             new_config.fast_fid.freq = args.freq or getattr(new_config.fast_fid, "freq", 5000)
@@ -444,7 +446,7 @@ def parse_args_and_config():
 
 
 def copy_scripts(src, dst):
-    print("Copying scripts in", src, "to", dst)
+    # print("Copying scripts in", src, "to", dst)
     for file in (
         glob.glob(os.path.join(src, "*.sh"))
         + glob.glob(os.path.join(src, "*.py"))
@@ -466,7 +468,7 @@ def copy_scripts(src, dst):
         ):
             if os.path.abspath(d) in os.path.abspath(dst):
                 continue
-            print("Copying", d)
+            # print("Copying", d)
             # shutil.copytree(d, os.path.join(dst, d))
             new_dir = os.path.join(dst, os.path.basename(os.path.normpath(d)))
             os.makedirs(new_dir, exist_ok=True)
@@ -482,6 +484,16 @@ def dict2namespace(config):
             new_value = value
         setattr(namespace, key, new_value)
     return namespace
+
+
+def namespace2dict(config):
+    result_dict = {}
+    for key, value in vars(config).items():
+        if isinstance(value, argparse.Namespace):
+            result_dict[key] = namespace2dict(value)
+        else:
+            result_dict[key] = value
+    return result_dict
 
 
 def main():

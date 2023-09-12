@@ -1,17 +1,17 @@
 import argparse
-import numpy as np
 import os
-import torch
-import yaml
-
 from collections import OrderedDict
 from functools import partial
+
+import numpy as np
+import torch
+import yaml
 from imageio import mimwrite
 from torch.utils.data import DataLoader
 from torchvision.utils import make_grid, save_image
 
 try:
-    from torchvision.transforms.functional import resize, InterpolationMode
+    from torchvision.transforms.functional import InterpolationMode, resize
 
     interp = InterpolationMode.NEAREST
 except:
@@ -19,15 +19,15 @@ except:
 
     interp = 0
 
-from datasets import get_dataset, data_transform, inverse_data_transform
+from datasets import data_transform, get_dataset, inverse_data_transform
 from main import dict2namespace
 from models import (
-    get_sigmas,
+    FPNDM_sampler,
     anneal_Langevin_dynamics,
     anneal_Langevin_dynamics_consistent,
-    ddpm_sampler,
     ddim_sampler,
-    FPNDM_sampler,
+    ddpm_sampler,
+    get_sigmas,
 )
 from models.ema import EMAHelper
 from runners.ncsn_runner import get_model
@@ -113,22 +113,24 @@ def get_sampler(config):
         cond_mask,
         subsample=getattr(config.sampling, "subsample", None),
         verbose=False,
+        final_only=True,
     ):
         init = init.to(config.device)
         cond = cond.to(config.device)
         if cond_mask is not None:
             cond_mask = cond_mask.to(config.device)
-        return inverse_data_transform(
-            config,
-            sampler_partial(
-                init,
-                scorenet,
-                cond=cond,
-                cond_mask=cond_mask,
-                subsample_steps=subsample,
-                verbose=verbose,
-            )[-1].to("cpu"),
+        output = sampler_partial(
+            init,
+            scorenet,
+            cond=cond,
+            cond_mask=cond_mask,
+            subsample_steps=subsample,
+            verbose=verbose,
+            final_only=final_only,
         )
+        if final_only:
+            output = output[-1]
+        return inverse_data_transform(config, output.to("cpu"))
 
     return sampler_fn
 

@@ -1,55 +1,56 @@
 import datetime
 import logging
-import imageio
 import math
+
+import imageio
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 import pickle
-import psutil
-import scipy.stats as st
 import sys
 import time
-import yaml
-
-import torch
-import torch.nn.functional as F
-import torchvision.transforms as Transforms
-
-from cv2 import rectangle, putText
 from functools import partial
 from math import ceil, log10
 from multiprocessing import Process
-from skimage.metrics import structural_similarity as ssim
-from tqdm import tqdm
 
+import matplotlib.pyplot as plt
+import numpy as np
+import psutil
+import scipy.stats as st
+import torch
+import torch.nn.functional as F
+import torchvision.transforms as Transforms
+import wandb
+import yaml
+from cv2 import putText, rectangle
+from skimage.metrics import structural_similarity as ssim
 from torch.distributions.gamma import Gamma
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import resized_crop
 from torchvision.utils import make_grid, save_image
+from tqdm import tqdm
 
 import models.eval_models as eval_models
-
-from datasets import get_dataset, data_transform, inverse_data_transform
+from datasets import data_transform, get_dataset, inverse_data_transform
 from datasets.ffhq_tfrecords import FFHQ_TFRecordsDataLoader
-from evaluation.fid_PR import get_fid, get_fid_PR, get_stats_path, get_feats_path
+from debug_utils import p
+from evaluation.fid_PR import get_feats_path, get_fid, get_fid_PR, get_stats_path
 from losses import get_optimizer, warmup_lr
 from losses.dsm import anneal_dsm_score_estimation
+from main import namespace2dict
 from models import (
-    ddpm_sampler,
-    ddim_sampler,
     FPNDM_sampler,
     anneal_Langevin_dynamics,
     anneal_Langevin_dynamics_consistent,
     anneal_Langevin_dynamics_inpainting,
     anneal_Langevin_dynamics_interpolation,
+    ddim_sampler,
+    ddpm_sampler,
 )
 from models.ema import EMAHelper
-from models.fvd.fvd import get_fvd_feats, frechet_distance, load_i3d_pretrained
-from models.unet import UNet_SMLD, UNet_DDPM
+from models.fvd.fvd import frechet_distance, get_fvd_feats, load_i3d_pretrained
+from models.unet import UNet_DDPM, UNet_SMLD
 
 # import pdb; pdb.set_trace()
 
@@ -65,7 +66,7 @@ def count_parameters(model):
 
 
 def get_proc_mem():
-    return psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
+    return psutil.Process(os.getpid()).memory_info().rss / 1024**3
 
 
 def get_GPU_mem():
@@ -74,7 +75,7 @@ def get_GPU_mem():
         mem = 0
         for i in range(num):
             mem_free, mem_total = torch.cuda.mem_get_info(i)
-            mem += (mem_total - mem_free) / 1024 ** 3
+            mem += (mem_total - mem_free) / 1024**3
         return mem
     except:
         return 0
@@ -83,12 +84,14 @@ def get_GPU_mem():
 class RunningAverageMeter(object):
     """Computes and stores the average and current value"""
 
-    def __init__(self, momentum=0.99, save_seq=True):
+    def __init__(self, momentum=0.99, save_seq=True, name=None):
         self.momentum = momentum
         self.save_seq = save_seq
         if self.save_seq:
             self.vals, self.steps = [], []
         self.reset()
+
+        self.name = name
 
     def reset(self):
         self.val, self.avg = None, 0
@@ -103,6 +106,12 @@ class RunningAverageMeter(object):
             self.vals.append(val)
             if step is not None:
                 self.steps.append(step)
+
+        self._log_to_wand(step)
+
+    def _log_to_wand(self, step):
+        if self.name is not None and step is not None and wandb.run is not None:
+            wandb.log({self.name: self.val}, step=step)
 
 
 def conditioning_fn(
@@ -137,7 +146,6 @@ def conditioning_fn(
 
     # Future
     if future > 0:
-
         if prob_mask_future == 1.0:
             future_frames = torch.zeros(len(X), config.data.channels * future, imsize, imsize)
             # future_mask = torch.zeros(len(X), 1, 1, 1).to(torch.int32) # make 0,1
@@ -194,21 +202,16 @@ def load_model(ckpt_path, device):
 
 
 def get_model(config):
-
     version = getattr(config.model, "version", "SMLD").upper()
     arch = getattr(config.model, "arch", "ncsn")
     depth = getattr(config.model, "depth", "deep")
 
     if arch == "unetmore":
-        from models.better.ncsnpp_more import (
-            UNetMore_DDPM,
-        )  # This lets the code run on CPU when 'unetmore' is not used
+        from models.better.ncsnpp_more import UNetMore_DDPM  # This lets the code run on CPU when 'unetmore' is not used
 
         return UNetMore_DDPM(config).to(config.device)  # .to(memory_format=torch.channels_last).to(config.device)
     elif arch in ["unetmore3d", "unetmorepseudo3d"]:
-        from models.better.ncsnpp_more import (
-            UNetMore_DDPM,
-        )  # This lets the code run on CPU when 'unetmore' is not used
+        from models.better.ncsnpp_more import UNetMore_DDPM  # This lets the code run on CPU when 'unetmore' is not used
 
         # return UNetMore_DDPM(config).to(memory_format=torch.channels_last_3d).to(config.device) # channels_last_3d doesn't work!
         return UNetMore_DDPM(config).to(config.device)  # .to(memory_format=torch.channels_last).to(config.device)
@@ -272,6 +275,9 @@ class NCSNRunner:
         return float(days) * 24 + float(hrs[0]) + float(hrs[1]) / 60 + float(hrs[2]) / 3600
 
     def train(self):
+        # WANDB
+        wandb.init(project="mcvd", config=namespace2dict(self.config), resume=self.args.resume_training)
+
         # If FFHQ tfrecord, reset dataloader
         if self.config.data.dataset.upper() == "FFHQ":
             dataloader = FFHQ_TFRecordsDataLoader(
@@ -307,7 +313,7 @@ class NCSNRunner:
             )
             test_iter = iter(test_loader)
 
-        self.config.input_dim = self.config.data.image_size ** 2 * self.config.data.channels
+        self.config.input_dim = self.config.data.image_size**2 * self.config.data.channels
 
         # tb_logger = self.config.tb_logger
 
@@ -388,7 +394,7 @@ class NCSNRunner:
             def test_tb_hook():
                 pass
 
-        print(scorenet)
+        # print(scorenet)
         net = scorenet.module if hasattr(scorenet, "module") else scorenet
 
         # Conditional
@@ -436,7 +442,6 @@ class NCSNRunner:
         early_end = False
         for epoch in range(start_epoch, self.config.training.n_epochs):
             for batch, (X, y) in enumerate(dataloader):
-
                 optimizer.zero_grad()
                 lr = warmup_lr(
                     optimizer,
@@ -489,14 +494,15 @@ class NCSNRunner:
                 self.total_train_time += itr_time
                 self.time_train.update(
                     self.convert_time_stamp_to_hrs(str(datetime.timedelta(seconds=self.total_train_time)))
-                    + self.time_train_prev
+                    + self.time_train_prev,
+                    step=step,
                 )
 
                 # Record
-                self.losses_train.update(loss.item(), step)
-                self.epochs.update(epoch + (batch + 1) / len(dataloader))
-                self.lr_meter.update(lr)
-                self.grad_norm.update(grad_norm.item())
+                self.losses_train.update(loss.item(), step=step)
+                self.epochs.update(epoch + (batch + 1) / len(dataloader), step=step)
+                self.lr_meter.update(lr, step=step)
+                self.grad_norm.update(grad_norm.item(), step=step)
                 if step == 1 or step % getattr(self.config.training, "log_freq", 1) == 0:
                     logging.info(
                         "elapsed: {}, train time: {:.04f}, mem: {:.03f}GB, GPUmem: {:.03f}GB, step: {}, lr: {:.06f}, grad: {:.04f}, loss: {:.04f}".format(
@@ -546,7 +552,6 @@ class NCSNRunner:
                     or (step % self.config.training.snapshot_freq == 0 or step % self.config.training.sample_freq == 0)
                     and self.config.training.snapshot_sampling
                 ):
-
                     if self.config.model.ema:
                         test_scorenet = ema_helper.ema_copy(scorenet)
                     else:
@@ -589,7 +594,7 @@ class NCSNRunner:
                         )
                     # tb_logger.add_scalar('test_loss', test_dsm_loss, global_step=step)
                     # test_tb_hook()
-                    self.losses_test.update(test_dsm_loss.item(), step)
+                    self.losses_test.update(test_dsm_loss.item(), step=step)
                     logging.info(
                         "elapsed: {}, step: {}, mem: {:.03f}GB, GPUmem: {:.03f}GB, test_loss: {:.04f}".format(
                             str(
@@ -615,7 +620,6 @@ class NCSNRunner:
                 if (
                     step % self.config.training.snapshot_freq == 0 or step % self.config.training.sample_freq == 0
                 ) and self.config.training.snapshot_sampling:
-
                     logging.info(f"Saving images in {self.args.log_sample_path}")
 
                     # Calc video metrics with max_data_iter=1
@@ -624,14 +628,13 @@ class NCSNRunner:
                         and step % self.config.training.snapshot_freq == 0
                         and self.config.training.snapshot_sampling
                     ):  # only at snapshot_freq, not at sample_freq
-
                         vid_metrics = self.video_gen(scorenet=test_scorenet, ckpt=step, train=True)
 
                         if "mse" in vid_metrics.keys():
-                            self.mses.update(vid_metrics["mse"], step)
-                            self.psnrs.update(vid_metrics["psnr"])
-                            self.ssims.update(vid_metrics["ssim"])
-                            self.lpipss.update(vid_metrics["lpips"])
+                            self.mses.update(vid_metrics["mse"], step=step)
+                            self.psnrs.update(vid_metrics["psnr"], step=step)
+                            self.ssims.update(vid_metrics["ssim"], step=step)
+                            self.lpipss.update(vid_metrics["lpips"], step=step)
                             if vid_metrics["mse"] < self.best_mse["mse"]:
                                 self.best_mse = vid_metrics
                             if vid_metrics["psnr"] > self.best_psnr["psnr"]:
@@ -641,15 +644,15 @@ class NCSNRunner:
                             if vid_metrics["lpips"] < self.best_lpips["lpips"]:
                                 self.best_lpips = vid_metrics
                             if self.calc_fvd1:
-                                self.fvds.update(vid_metrics["fvd"])
+                                self.fvds.update(vid_metrics["fvd"], step=step)
                                 if vid_metrics["fvd"] < self.best_fvd["fvd"]:
                                     self.best_fvd = vid_metrics
 
                         if "mse2" in vid_metrics.keys():
-                            self.mses2.update(vid_metrics["mse2"], step)
-                            self.psnrs2.update(vid_metrics["psnr2"])
-                            self.ssims2.update(vid_metrics["ssim2"])
-                            self.lpipss2.update(vid_metrics["lpips2"])
+                            self.mses2.update(vid_metrics["mse2"], step=step)
+                            self.psnrs2.update(vid_metrics["psnr2"], step=step)
+                            self.ssims2.update(vid_metrics["ssim2"], step=step)
+                            self.lpipss2.update(vid_metrics["lpips2"], step=step)
                             if vid_metrics["mse2"] < self.best_mse2["mse2"]:
                                 self.best_mse2 = vid_metrics
                             if vid_metrics["psnr2"] > self.best_psnr2["psnr2"]:
@@ -664,14 +667,20 @@ class NCSNRunner:
                                     self.best_fvd2 = vid_metrics
 
                         if self.calc_fvd3:
-                            self.fvds3.update(vid_metrics["fvd3"], step)
+                            self.fvds3.update(vid_metrics["fvd3"], step=step)
                             if vid_metrics["fvd3"] < self.best_fvd3["fvd3"]:
                                 self.best_fvd3 = vid_metrics
 
                         # Show best results for every metric
 
                         if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
-                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
+                            (
+                                self.mses_pred,
+                                self.psnrs_pred,
+                                self.ssims_pred,
+                                self.lpipss_pred,
+                                self.fvds_pred,
+                            ) = (
                                 self.mses,
                                 self.psnrs,
                                 self.ssims,
@@ -736,7 +745,13 @@ class NCSNRunner:
                                 self.lpipss,
                                 self.fvds,
                             )
-                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
+                            (
+                                self.mses_pred,
+                                self.psnrs_pred,
+                                self.ssims_pred,
+                                self.lpipss_pred,
+                                self.fvds_pred,
+                            ) = (
                                 self.mses2,
                                 self.psnrs2,
                                 self.ssims2,
@@ -774,7 +789,13 @@ class NCSNRunner:
                                 self.calc_fvd2,
                             )
                         elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
-                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
+                            (
+                                self.mses_pred,
+                                self.psnrs_pred,
+                                self.ssims_pred,
+                                self.lpipss_pred,
+                                self.fvds_pred,
+                            ) = (
                                 self.mses,
                                 self.psnrs,
                                 self.ssims,
@@ -812,7 +833,13 @@ class NCSNRunner:
                                 self.lpipss,
                                 self.fvds,
                             )
-                            (self.mses_pred, self.psnrs_pred, self.ssims_pred, self.lpipss_pred, self.fvds_pred,) = (
+                            (
+                                self.mses_pred,
+                                self.psnrs_pred,
+                                self.ssims_pred,
+                                self.lpipss_pred,
+                                self.fvds_pred,
+                            ) = (
                                 self.mses2,
                                 self.psnrs2,
                                 self.ssims2,
@@ -962,7 +989,6 @@ class NCSNRunner:
                     pred = inverse_data_transform(self.config, pred)
 
                     if conditional:
-
                         reali = inverse_data_transform(self.config, test_X.to("cpu"))
                         condi = inverse_data_transform(self.config, test_cond.to("cpu"))
                         if future > 0:
@@ -978,108 +1004,18 @@ class NCSNRunner:
                             )
 
                         # Save gif
-                        gif_frames = []
-                        for t in range(condi.shape[1] // self.config.data.channels):
-                            cond_t = condi[
-                                :,
-                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
-                            ]  # BCHW
-                            frame = torch.cat(
-                                [
-                                    cond_t,
-                                    0.5 * torch.ones(*cond_t.shape[:-1], 2),
-                                    cond_t,
-                                ],
-                                dim=-1,
-                            )
-                            frame = frame.permute(0, 2, 3, 1).numpy()
-                            frame = np.stack(
-                                [
-                                    putText(
-                                        f.copy(),
-                                        f"{t+1:2d}p",
-                                        (4, 15),
-                                        0,
-                                        0.5,
-                                        (1, 1, 1),
-                                        1,
-                                    )
-                                    for f in frame
-                                ]
-                            )
-                            nrow = ceil(np.sqrt(2 * condi.shape[0]) / 2)
-                            gif_frame = (
-                                make_grid(
-                                    torch.from_numpy(frame).permute(0, 3, 1, 2),
-                                    nrow=nrow,
-                                    padding=6,
-                                    pad_value=0.5,
-                                )
-                                .permute(1, 2, 0)
-                                .numpy()
-                            )  # HWC
-                            gif_frames.append((gif_frame * 255).astype("uint8"))
-                            if t == 0:
-                                gif_frames.append((gif_frame * 255).astype("uint8"))
-                            del frame, gif_frame
-                        for t in range(pred.shape[1] // self.config.data.channels):
-                            real_t = reali[
-                                :,
-                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
-                            ]  # BCHW
-                            pred_t = pred[
-                                :,
-                                t * self.config.data.channels : (t + 1) * self.config.data.channels,
-                            ]  # BCHW
-                            frame = torch.cat(
-                                [
-                                    real_t,
-                                    0.5 * torch.ones(*pred_t.shape[:-1], 2),
-                                    pred_t,
-                                ],
-                                dim=-1,
-                            )
-                            frame = frame.permute(0, 2, 3, 1).numpy()  # BHWC
-                            frame = np.stack(
-                                [
-                                    putText(
-                                        f.copy(),
-                                        f"{t+1:02d}",
-                                        (4, 15),
-                                        0,
-                                        0.5,
-                                        (1, 1, 1),
-                                        1,
-                                    )
-                                    for f in frame
-                                ]
-                            )
-                            nrow = ceil(np.sqrt(2 * pred.shape[0]) / 2)
-                            gif_frame = (
-                                make_grid(
-                                    torch.from_numpy(frame).permute(0, 3, 1, 2),
-                                    nrow=nrow,
-                                    padding=6,
-                                    pad_value=0.5,
-                                )
-                                .permute(1, 2, 0)
-                                .numpy()
-                            )  # HWC
-                            gif_frames.append((gif_frame * 255).astype("uint8"))
-                            if t == pred.shape[1] // self.config.data.channels - 1 and future == 0:
-                                gif_frames.append((gif_frame * 255).astype("uint8"))
-                            del frame, gif_frame
-                        if future > 0:
-                            for t in range(futri.shape[1] // self.config.data.channels):
-                                futr_t = futri[
+                        if False:  # dont save gifs for now
+                            gif_frames = []
+                            for t in range(condi.shape[1] // self.config.data.channels):
+                                cond_t = condi[
                                     :,
                                     t * self.config.data.channels : (t + 1) * self.config.data.channels,
                                 ]  # BCHW
                                 frame = torch.cat(
                                     [
-                                        futr_t,
-                                        0.5 * torch.ones(*futr_t.shape[:-1], 2),
-                                        futr_t,
+                                        cond_t,
+                                        0.5 * torch.ones(*cond_t.shape[:-1], 2),
+                                        cond_t,
                                     ],
                                     dim=-1,
                                 )
@@ -1088,7 +1024,7 @@ class NCSNRunner:
                                     [
                                         putText(
                                             f.copy(),
-                                            f"{t+1:2d}f",
+                                            f"{t+1:2d}p",
                                             (4, 15),
                                             0,
                                             0.5,
@@ -1110,17 +1046,108 @@ class NCSNRunner:
                                     .numpy()
                                 )  # HWC
                                 gif_frames.append((gif_frame * 255).astype("uint8"))
-                                if t == futri.shape[1] // self.config.data.channels - 1:
+                                if t == 0:
                                     gif_frames.append((gif_frame * 255).astype("uint8"))
                                 del frame, gif_frame
+                            for t in range(pred.shape[1] // self.config.data.channels):
+                                real_t = reali[
+                                    :,
+                                    t * self.config.data.channels : (t + 1) * self.config.data.channels,
+                                ]  # BCHW
+                                pred_t = pred[
+                                    :,
+                                    t * self.config.data.channels : (t + 1) * self.config.data.channels,
+                                ]  # BCHW
+                                frame = torch.cat(
+                                    [
+                                        real_t,
+                                        0.5 * torch.ones(*pred_t.shape[:-1], 2),
+                                        pred_t,
+                                    ],
+                                    dim=-1,
+                                )
+                                frame = frame.permute(0, 2, 3, 1).numpy()  # BHWC
+                                frame = np.stack(
+                                    [
+                                        putText(
+                                            f.copy(),
+                                            f"{t+1:02d}",
+                                            (4, 15),
+                                            0,
+                                            0.5,
+                                            (1, 1, 1),
+                                            1,
+                                        )
+                                        for f in frame
+                                    ]
+                                )
+                                nrow = ceil(np.sqrt(2 * pred.shape[0]) / 2)
+                                gif_frame = (
+                                    make_grid(
+                                        torch.from_numpy(frame).permute(0, 3, 1, 2),
+                                        nrow=nrow,
+                                        padding=6,
+                                        pad_value=0.5,
+                                    )
+                                    .permute(1, 2, 0)
+                                    .numpy()
+                                )  # HWC
+                                gif_frames.append((gif_frame * 255).astype("uint8"))
+                                if t == pred.shape[1] // self.config.data.channels - 1 and future == 0:
+                                    gif_frames.append((gif_frame * 255).astype("uint8"))
+                                del frame, gif_frame
+                            if future > 0:
+                                for t in range(futri.shape[1] // self.config.data.channels):
+                                    futr_t = futri[
+                                        :,
+                                        t * self.config.data.channels : (t + 1) * self.config.data.channels,
+                                    ]  # BCHW
+                                    frame = torch.cat(
+                                        [
+                                            futr_t,
+                                            0.5 * torch.ones(*futr_t.shape[:-1], 2),
+                                            futr_t,
+                                        ],
+                                        dim=-1,
+                                    )
+                                    frame = frame.permute(0, 2, 3, 1).numpy()
+                                    frame = np.stack(
+                                        [
+                                            putText(
+                                                f.copy(),
+                                                f"{t+1:2d}f",
+                                                (4, 15),
+                                                0,
+                                                0.5,
+                                                (1, 1, 1),
+                                                1,
+                                            )
+                                            for f in frame
+                                        ]
+                                    )
+                                    nrow = ceil(np.sqrt(2 * condi.shape[0]) / 2)
+                                    gif_frame = (
+                                        make_grid(
+                                            torch.from_numpy(frame).permute(0, 3, 1, 2),
+                                            nrow=nrow,
+                                            padding=6,
+                                            pad_value=0.5,
+                                        )
+                                        .permute(1, 2, 0)
+                                        .numpy()
+                                    )  # HWC
+                                    gif_frames.append((gif_frame * 255).astype("uint8"))
+                                    if t == futri.shape[1] // self.config.data.channels - 1:
+                                        gif_frames.append((gif_frame * 255).astype("uint8"))
+                                    del frame, gif_frame
 
-                        # Save gif
-                        imageio.mimwrite(
-                            os.path.join(self.args.log_sample_path, f"video_grid_{step}.gif"),
-                            gif_frames,
-                            fps=4,
-                        )
-                        del gif_frames
+                            # Save gif
+                            imageio.mimwrite(
+                                os.path.join(self.args.log_sample_path, f"video_grid_{step}.gif"),
+                                gif_frames,
+                                duration=1000 // 4,
+                            )
+                            del gif_frames
 
                         # Stretch out multiple frames horizontally
                         pred = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
@@ -1186,7 +1213,7 @@ class NCSNRunner:
                             )
                             / (self.config.data.num_frames_cond + self.config.data.num_frames * 2 + future)
                         )
-                        image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
+                        image_grid = make_grid(data, nrow=nrow, padding=10, pad_value=1)
 
                     else:
                         # Stretch out multiple frames horizontally
@@ -1198,10 +1225,23 @@ class NCSNRunner:
                         image_grid,
                         os.path.join(self.args.log_sample_path, "image_grid_{}.png".format(step)),
                     )
-                    torch.save(
-                        pred,
-                        os.path.join(self.args.log_sample_path, "samples_{}.pt".format(step)),
-                    )
+                    # torch.save(
+                    #     pred,
+                    #     os.path.join(self.args.log_sample_path, "samples_{}.pt".format(step)),
+                    # )
+
+                    if wandb.run is not None:
+                        wandb.log(
+                            {
+                                "samples_train": [
+                                    wandb.Image(
+                                        image_grid.permute(1, 2, 0).numpy(),
+                                        caption=f"step: {step}",
+                                    )
+                                ]
+                            },
+                            step=step,
+                        )
 
                     del all_samples
 
@@ -1209,7 +1249,8 @@ class NCSNRunner:
 
                 self.time_elapsed.update(
                     self.convert_time_stamp_to_hrs(str(datetime.timedelta(seconds=(time.time() - self.start_time))))
-                    + self.time_elapsed_prev
+                    + self.time_elapsed_prev,
+                    step=step,
                 )
 
                 # Save meters
@@ -1704,7 +1745,6 @@ class NCSNRunner:
                     )
 
             elif self.config.sampling.interpolation:
-
                 if self.config.sampling.data_init or conditional:
                     data_iter = iter(dataloader)
                     samples, _ = next(data_iter)
@@ -1821,7 +1861,6 @@ class NCSNRunner:
                     )
 
             else:
-
                 if self.config.sampling.data_init or conditional:
                     data_iter = iter(dataloader)
                     real, _ = next(data_iter)
@@ -2020,7 +2059,6 @@ class NCSNRunner:
             total_n_samples = self.config.sampling.num_samples4fid
             n_rounds = total_n_samples // self.config.sampling.batch_size
             if self.config.sampling.data_init:
-
                 # If FFHQ tfrecord, reset dataloader
                 if self.config.data.dataset.upper() == "FFHQ":
                     dataloader = FFHQ_TFRecordsDataLoader(
@@ -2059,7 +2097,6 @@ class NCSNRunner:
             sampler = self.get_sampler()
             fids = {}
             for i in tqdm(range(n_rounds), desc="Generating samples for FID"):
-
                 init_samples_shape = (
                     self.config.sampling.batch_size,
                     self.config.data.channels * self.config.data.num_frames,
@@ -2210,7 +2247,6 @@ class NCSNRunner:
 
         # FVD
         if calc_fvd:
-
             if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
                 calc_fvd1 = self.condf + self.config.sampling.num_frames_pred >= 10
                 calc_fvd2 = calc_fvd3 = False
@@ -2277,7 +2313,6 @@ class NCSNRunner:
         prob_mask_future = getattr(self.config.data, "prob_mask_future", 0.0)
 
         if scorenet is None:
-
             if self.config.sampling.ckpt_id is None:
                 ckpt = "latest"
                 logging.info(f"Loading ckpt {os.path.join(self.args.log_path, 'checkpoint.pt')}")
@@ -2377,7 +2412,6 @@ class NCSNRunner:
             total=min(max_data_iter, len(dataloader)),
             desc="\nvideo_gen dataloader",
         ):
-
             if i >= max_data_iter:  # stop early
                 break
 
@@ -2473,7 +2507,6 @@ class NCSNRunner:
             pred_samples = []
 
             for i_frame in tqdm(range(n_iter_frames), desc="Generating video frames"):
-
                 mynet = scorenet
 
                 # Generate samples
@@ -2601,7 +2634,6 @@ class NCSNRunner:
                 for ii in range(len(pred)):
                     mse, avg_ssim, avg_distance = 0, 0, 0
                     for jj in range(num_frames_pred):
-
                         # MSE (and PSNR)
                         pred_ij = pred[
                             ii,
@@ -2660,7 +2692,6 @@ class NCSNRunner:
 
             second_calc = False
             if future > 0 and prob_mask_future > 0.0 and not self.prob_mask_sync:
-
                 second_calc = True
                 logging.info(f"(2) Video Pred")
 
@@ -2742,7 +2773,6 @@ class NCSNRunner:
                 pred_samples = []
 
                 for i_frame in tqdm(range(n_iter_frames), desc="Generating video frames"):
-
                     mynet = scorenet
 
                     # Generate samples
@@ -2876,7 +2906,6 @@ class NCSNRunner:
                     for ii in range(len(pred2)):
                         mse, avg_ssim, avg_distance = 0, 0, 0
                         for jj in range(num_frames_pred):
-
                             # MSE (and PSNR)
                             pred_ij = pred2[
                                 ii,
@@ -2935,10 +2964,8 @@ class NCSNRunner:
             logging.info(f"fvd1 {calc_fvd1}, fvd2 {calc_fvd2}, fvd3 {calc_fvd3}")
             pred_uncond = None
             if calc_fvd1 or calc_fvd2 or calc_fvd3:
-
                 # (3) Unconditional Video Generation: We must redo the predictions with no input conditioning for unconditional FVD
                 if calc_fvd3:
-
                     logging.info(f"(3) Video Gen - Uncond - FVD")
 
                     # If future = 0, we must make more since first ones are empty frames!
@@ -3020,7 +3047,6 @@ class NCSNRunner:
 
                     pred_samples = []
                     for i_frame in tqdm(range(n_iter_frames), desc="Generating video frames"):
-
                         # Generate samples
                         gen_samples = sampler(
                             init_samples
@@ -3180,7 +3206,6 @@ class NCSNRunner:
                     return x
 
                 if (calc_fvd1 or (calc_fvd3 and not second_calc)) and real.shape[1] >= pred.shape[1]:
-
                     # real
                     if future == 0:
                         real_fvd = torch.cat(
@@ -3243,7 +3268,6 @@ class NCSNRunner:
                 if (second_calc and (calc_fvd2 or calc_fvd3)) and real.shape[1] >= pred.shape[
                     1
                 ]:  # only cond, but real has all frames req for interp
-
                     # real2
                     real_fvd2 = torch.cat(
                         [
@@ -3511,17 +3535,18 @@ class NCSNRunner:
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                 elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
-                    imageio.mimwrite(
-                        os.path.join(
-                            self.args.log_sample_path if train else self.args.video_folder,
-                            f"videos_interp_{ckpt}_{i}.gif",
-                        ),
-                        [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
-                        fps=4,
-                    )
+                    if False:  # disable gif saving for now
+                        imageio.mimwrite(
+                            os.path.join(
+                                self.args.log_sample_path if train else self.args.video_folder,
+                                f"videos_interp_{ckpt}_{i}.gif",
+                            ),
+                            [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
+                            duration=1000 // 4,
+                        )
                 elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
                     imageio.mimwrite(
                         os.path.join(
@@ -3529,7 +3554,7 @@ class NCSNRunner:
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                     imageio.mimwrite(
                         os.path.join(
@@ -3537,7 +3562,7 @@ class NCSNRunner:
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred2],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                 elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
                     imageio.mimwrite(
@@ -3546,7 +3571,7 @@ class NCSNRunner:
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
@@ -3555,7 +3580,7 @@ class NCSNRunner:
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
-                            fps=4,
+                            duration=1000 // 4,
                         )
                 elif (
                     self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
@@ -3566,7 +3591,7 @@ class NCSNRunner:
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                     imageio.mimwrite(
                         os.path.join(
@@ -3574,7 +3599,7 @@ class NCSNRunner:
                             f"videos_pred_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred2],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
@@ -3583,7 +3608,7 @@ class NCSNRunner:
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
-                            fps=4,
+                            duration=1000 // 4,
                         )
                 elif (
                     self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
@@ -3594,7 +3619,7 @@ class NCSNRunner:
                             f"videos_interp_{ckpt}_{i}.gif",
                         ),
                         [*gif_frames_cond, *gif_frames_pred, *gif_frames_futr],
-                        fps=4,
+                        duration=1000 // 4,
                     )
                     if len(gif_frames_pred3) > 0:
                         imageio.mimwrite(
@@ -3603,7 +3628,7 @@ class NCSNRunner:
                                 f"videos_gen_{ckpt}_{i}.gif",
                             ),
                             gif_frames_pred3,
-                            fps=4,
+                            duration=1000 // 4,
                         )
 
                 del (
@@ -3661,16 +3686,16 @@ class NCSNRunner:
                         )
 
                 def save_interp(pred, real):
-                    if train:
-                        torch.save(
-                            {"cond": cond, "pred": pred, "real": real, "futr": futr},
-                            os.path.join(self.args.log_sample_path, f"videos_interp_{ckpt}.pt"),
-                        )
-                    else:
-                        torch.save(
-                            {"cond": cond, "pred": pred, "real": real, "futr": futr},
-                            os.path.join(self.args.video_folder, f"videos_interp_{ckpt}.pt"),
-                        )
+                    # if train:
+                    #     torch.save(
+                    #         {"cond": cond, "pred": pred, "real": real, "futr": futr},
+                    #         os.path.join(self.args.log_sample_path, f"videos_interp_{ckpt}.pt"),
+                    #     )
+                    # else:
+                    #     torch.save(
+                    #         {"cond": cond, "pred": pred, "real": real, "futr": futr},
+                    #         os.path.join(self.args.video_folder, f"videos_interp_{ckpt}.pt"),
+                    #     )
                     cond_im = stretch_image(cond, self.config.data.channels, self.config.data.image_size)
                     pred_im = stretch_image(pred, self.config.data.channels, self.config.data.image_size)
                     real_im = stretch_image(real, self.config.data.channels, self.config.data.image_size)
@@ -3697,7 +3722,7 @@ class NCSNRunner:
                         )
                         / (self.config.data.num_frames_cond + self.config.sampling.num_frames_pred + future)
                     )
-                    image_grid = make_grid(data, nrow=nrow, padding=6, pad_value=0.5)
+                    image_grid = make_grid(data[:36], nrow=nrow, padding=6, pad_value=0.5)
                     if train:
                         save_image(
                             image_grid,
@@ -3706,6 +3731,8 @@ class NCSNRunner:
                                 f"videos_stretch_interp_{ckpt}_{i}.png",
                             ),
                         )
+                        if wandb.run is not None:
+                            wandb.log({"samples_val": wandb.Image(image_grid, caption=f"step: {ckpt}")}, step=ckpt)
                     else:
                         save_image(
                             image_grid,
@@ -3792,7 +3819,9 @@ class NCSNRunner:
 
         def image_metric_stuff(metric):
             avg_metric, std_metric = metric.mean().item(), metric.std().item()
-            conf95_metric = avg_metric - float(st.norm.interval(alpha=0.95, loc=avg_metric, scale=st.sem(metric))[0])
+            conf95_metric = avg_metric - float(
+                st.norm.interval(confidence=0.95, loc=avg_metric, scale=st.sem(metric))[0]
+            )
             return avg_metric, std_metric, conf95_metric
 
         avg_mse, std_mse, conf95_mse = image_metric_stuff(mse_list)
@@ -3827,7 +3856,7 @@ class NCSNRunner:
                     fvds_list.append(frechet_distance(fake_embeddings[traj::preds_per_test], real_embeddings))
                 fvd_traj_mean, fvd_traj_std = float(np.mean(fvds_list)), float(np.std(fvds_list))
                 fvd_traj_conf95 = fvd_traj_mean - float(
-                    st.norm.interval(alpha=0.95, loc=fvd_traj_mean, scale=st.sem(fvds_list))[0]
+                    st.norm.interval(confidence=0.95, loc=fvd_traj_mean, scale=st.sem(fvds_list))[0]
                 )
             else:
                 fvd_traj_mean, fvd_traj_std, fvd_traj_conf95 = -1, -1, -1
@@ -3835,7 +3864,6 @@ class NCSNRunner:
 
         # Calc FVD
         if calc_fvd1 or calc_fvd2 or calc_fvd3:
-
             if calc_fvd1:
                 # (1) Video Pred/Interp
                 real_embeddings = np.concatenate(real_embeddings)
@@ -3947,14 +3975,12 @@ class NCSNRunner:
             return vid_metrics
 
         else:
-
             logging.info(
                 f"elapsed: {elapsed}, Writing metrics to {os.path.join(self.args.video_folder, 'vid_metrics.yml')}"
             )
             vid_metrics["time"] = elapsed
 
             if self.condp == 0.0 and self.futrf == 0:  # (1) Prediction
-
                 (
                     vid_metrics["pred_mse"],
                     vid_metrics["pred_psnr"],
@@ -4002,7 +4028,6 @@ class NCSNRunner:
                     )
 
             elif self.condp == 0.0 and self.futrf > 0 and self.futrp == 0.0:  # (1) Interpolation
-
                 (
                     vid_metrics["interp_mse"],
                     vid_metrics["interp_psnr"],
@@ -4050,7 +4075,6 @@ class NCSNRunner:
                     )
 
             elif self.condp == 0.0 and self.futrf > 0 and self.futrp > 0.0:  # (1) Interp + (2) Pred
-
                 (
                     vid_metrics["interp_mse"],
                     vid_metrics["interp_psnr"],
@@ -4145,7 +4169,6 @@ class NCSNRunner:
                     )
 
             elif self.condp > 0.0 and self.futrf == 0:  # (1) Pred + (3) Gen
-
                 (
                     vid_metrics["pred_mse"],
                     vid_metrics["pred_psnr"],
@@ -4208,7 +4231,6 @@ class NCSNRunner:
             elif (
                 self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and not self.prob_mask_sync
             ):  # (1) Interp + (2) Pred + (3) Gen
-
                 (
                     vid_metrics["interp_mse"],
                     vid_metrics["interp_psnr"],
@@ -4318,7 +4340,6 @@ class NCSNRunner:
             elif (
                 self.condp > 0.0 and self.futrf > 0 and self.futrp > 0.0 and self.prob_mask_sync
             ):  # (1) Interp + (3) Gen
-
                 (
                     vid_metrics["interp_mse"],
                     vid_metrics["interp_psnr"],
@@ -4533,7 +4554,6 @@ class NCSNRunner:
             ),
             desc="Ckpt",
         ):
-
             # Check for features
             if os.path.exists(os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))):
                 gen_samples = os.path.join(self.args.image_folder, "feats_{}.pt".format(ckpt))
@@ -4546,7 +4566,6 @@ class NCSNRunner:
 
             # Generate samples
             else:
-
                 states = torch.load(
                     os.path.join(self.args.log_path, f"checkpoint_{ckpt}.pt"),
                     map_location=self.config.device,
@@ -4566,7 +4585,6 @@ class NCSNRunner:
                 # output_path = os.path.join(self.args.image_folder, 'ckpt_{}'.format(ckpt))
                 # os.makedirs(output_path, exist_ok=True)
                 for i in tqdm(range(num_iters), desc="samples"):
-
                     # z
                     init_samples_shape = (
                         self.config.fast_fid.batch_size,
@@ -4774,7 +4792,6 @@ class NCSNRunner:
             output_path = os.path.join(self.args.image_folder, "ckpt_{}".format(ckpt))
             os.makedirs(output_path, exist_ok=True)
             for i in range(num_iters):
-
                 # z
                 init_samples_shape = (
                     self.config.fast_fid.batch_size,
@@ -4903,32 +4920,32 @@ class NCSNRunner:
     def init_meters(self):
         success = self.load_meters()
         if not success:
-            self.epochs = RunningAverageMeter()
+            self.epochs = RunningAverageMeter(name="epoch")
             self.losses_train, self.losses_test = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="loss_train"),
+                RunningAverageMeter(name="loss_test"),
             )
-            self.lr_meter, self.grad_norm = RunningAverageMeter(), RunningAverageMeter()
+            self.lr_meter, self.grad_norm = RunningAverageMeter(name="lr"), RunningAverageMeter(name="grad_norm")
             self.time_train, self.time_elapsed = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="time_train"),
+                RunningAverageMeter(name="time_elapsed"),
             )
             self.time_train_prev = self.time_elapsed_prev = 0
             self.mses, self.psnrs, self.ssims, self.lpipss, self.fvds = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="mse"),
+                RunningAverageMeter(name="psnr"),
+                RunningAverageMeter(name="ssim"),
+                RunningAverageMeter(name="lpips"),
+                RunningAverageMeter(name="fvd"),
             )
             self.mses2, self.psnrs2, self.ssims2, self.lpipss2, self.fvds2 = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="mse2"),
+                RunningAverageMeter(name="psnr2"),
+                RunningAverageMeter(name="ssim2"),
+                RunningAverageMeter(name="lpips2"),
+                RunningAverageMeter(name="fvd2"),
             )
-            self.fvds3 = RunningAverageMeter()
+            self.fvds3 = RunningAverageMeter(name="fvd3")
             self.best_mse = {
                 "ckpt": -1,
                 "mse": math.inf,
@@ -5114,11 +5131,11 @@ class NCSNRunner:
             self.best_fvd = a["best_fvd"]
         except:
             self.mses, self.psnrs, self.ssims, self.lpipss, self.fvds = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="mse"),
+                RunningAverageMeter(name="psnr"),
+                RunningAverageMeter(name="ssim"),
+                RunningAverageMeter(name="lpips"),
+                RunningAverageMeter(name="fvd"),
             )
             self.best_mse = {
                 "ckpt": -1,
@@ -5205,13 +5222,13 @@ class NCSNRunner:
             self.best_fvd3 = a["best_fvd3"]
         except:
             self.mses2, self.psnrs2, self.ssims2, self.lpipss2, self.fvds2 = (
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
-                RunningAverageMeter(),
+                RunningAverageMeter(name="mse2"),
+                RunningAverageMeter(name="psnr2"),
+                RunningAverageMeter(name="ssim2"),
+                RunningAverageMeter(name="lpips2"),
+                RunningAverageMeter(name="fvd2"),
             )
-            self.fvds3 = RunningAverageMeter()
+            self.fvds3 = RunningAverageMeter(name="fvd3")
             self.best_mse2 = {
                 "ckpt": -1,
                 "mse": math.inf,
